@@ -1,0 +1,95 @@
+:root {
+  --bg: #f4f2e8;
+  --card: #ffffff;
+  --text: #16213e;
+  --muted: #4a5b7a;
+  --border: #d7dcea;
+  --primary: #1f6feb;
+  --ok: #147a4b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Segoe UI", Tahoma, sans-serif;
+  background: radial-gradient(circle at 20% 0%, #fff6d8, var(--bg) 45%);
+  color: var(--text);
+}
+
+.app {
+  max-width: 780px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+h1 {
+  margin: 0;
+  font-size: 2rem;
+}
+
+.subtitle {
+  margin-top: 6px;
+  color: var(--muted);
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  margin-top: 14px;
+}
+
+label {
+  display: block;
+  font-weight: 600;
+  margin-top: 10px;
+  margin-bottom: 6px;
+}
+
+input,
+select,
+button {
+  width: 100%;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  font-size: 1rem;
+  padding: 10px 12px;
+}
+
+button {
+  margin-top: 12px;
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+}
+
+button.accent {
+  background: var(--ok);
+}
+
+button.delete {
+  background: #be123c;
+}
+
+.inline-grid {
+  display: grid;
+  grid-template-columns: 1fr 120px;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.list-item {
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+  margin-top: 10px;
+}
+
+.hidden {
+  display: none;
+}

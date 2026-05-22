@@ -1,11 +1,11 @@
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { HomeScreen } from '../screens/HomeScreen';
-import { NewSessionScreen } from '../screens/NewSessionScreen';
-import { PickominoSessionScreen } from '../screens/PickominoSessionScreen';
-import { SessionHistoryScreen } from '../screens/SessionHistoryScreen';
-import { Take5SessionScreen } from '../screens/Take5SessionScreen';
-import { RootStackParamList } from '../types/navigation';
+import { HomeScreen } from '../../src/screens/HomeScreen';
+import { NewSessionScreen } from '../../src/screens/NewSessionScreen';
+import { PickominoSessionScreen } from '../../src/screens/PickominoSessionScreen';
+import { SessionHistoryScreen } from '../../src/screens/SessionHistoryScreen';
+import { Take5SessionScreen } from '../../src/screens/Take5SessionScreen';
+import { RootStackParamList } from '../../src/types/navigation';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 

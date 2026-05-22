@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Scoresheets Web</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app">
+      <h1>Scoresheets</h1>
+      <p class="subtitle">Small web-first version</p>
+
+      <section class="card">
+        <label for="game">Game</label>
+        <select id="game">
+          <option value="take-5">Take 5! (per round)</option>
+          <option value="pick-omino">Pick-omino (total only)</option>
+        </select>
+
+        <label for="players">Players (comma separated)</label>
+        <input id="players" type="text" placeholder="Alice, Bob" />
+
+        <button id="start-session">Start session</button>
+      </section>
+
+      <section class="card hidden" id="session-panel">
+        <h2 id="session-title"></h2>
+        <div id="entry-panel"></div>
+        <button id="save-session" class="accent">Save session</button>
+      </section>
+
+      <section class="card">
+        <h2>Saved sessions</h2>
+        <div id="saved-list"></div>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
