@@ -9,33 +9,49 @@
   <body>
     <main class="app">
       <h1>Scoresheets</h1>
-      <p class="subtitle">Small web-first version</p>
+      <p class="subtitle">Simple Scoresheets</p>
 
-      <section class="card">
-        <label for="game">Game</label>
-        <select id="game">
-          <option value="take-5">Take 5! (per round)</option>
-          <option value="pick-omino">Pick-omino (total only)</option>
-        </select>
+      <nav class="tabs" aria-label="Main views">
+        <button class="tab is-active" data-view="home" type="button">Home</button>
+        <button class="tab" data-view="new-session" type="button">New Session</button>
+        <button class="tab" data-view="history" type="button">Session History</button>
+      </nav>
 
-        <label for="players">Players (comma separated)</label>
-        <input id="players" type="text" placeholder="Alice, Bob" />
-
-        <button id="start-session">Start session</button>
+      <section class="view" id="view-home">
+        <section class="card">
+          <h2>Home</h2>
+          <p>Track scores for point-based games.</p>
+          <div id="home-summary"></div>
+        </section>
       </section>
 
-      <section class="card hidden" id="session-panel">
-        <h2 id="session-title"></h2>
-        <div id="entry-panel"></div>
-        <button id="save-session" class="accent">Save session</button>
+      <section class="view hidden" id="view-new-session">
+        <section class="card">
+          <h2>New Session</h2>
+          <label for="game">Game</label>
+          <select id="game"></select>
+
+          <label for="players">Players (comma separated)</label>
+          <input id="players" type="text" placeholder="Daniel, Illy" />
+
+          <button id="start-session" type="button">Start session</button>
+        </section>
+
+        <section class="card hidden" id="session-panel">
+          <h2 id="session-title"></h2>
+          <div id="entry-panel"></div>
+          <button id="save-session" class="accent" type="button">Save session</button>
+        </section>
       </section>
 
-      <section class="card">
-        <h2>Saved sessions</h2>
-        <div id="saved-list"></div>
+      <section class="view hidden" id="view-history">
+        <section class="card">
+          <h2>Saved Sessions</h2>
+          <div id="saved-list"></div>
+        </section>
       </section>
     </main>
 
-    <script src="./app.js"></script>
+    <script type="module" src="./src/main.js"></script>
   </body>
 </html>

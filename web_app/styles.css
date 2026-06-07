@@ -35,6 +35,31 @@ h1 {
   color: var(--muted);
 }
 
+.tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.tab {
+  margin-top: 0;
+  background: #e3ebfb;
+  color: var(--text);
+  border: 1px solid #c6d5f6;
+  font-weight: 600;
+}
+
+.tab.is-active {
+  background: var(--primary);
+  color: #fff;
+  border-color: transparent;
+}
+
+.view {
+  margin-top: 12px;
+}
+
 .card {
   background: var(--card);
   border: 1px solid var(--border);
