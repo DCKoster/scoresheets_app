@@ -1,12 +1,10 @@
-export function renderHomeSummary(homeSummary, sessions) {
-  if (sessions.length === 0) {
-    homeSummary.innerHTML = '<p>No sessions yet. Start one from New Session.</p>';
-    return;
+export function renderHomeSummary(container, sessions, games) {
+  container.replaceChildren();
+  const paragraph = document.createElement('p');
+  if (!sessions.length) paragraph.textContent = 'No sessions yet. Start one from New Session.';
+  else {
+    const gameName = games.find((game) => game.id === sessions[0].gameId)?.name ?? sessions[0].gameNameAtPlay;
+    paragraph.textContent = `${sessions.length} saved session${sessions.length === 1 ? '' : 's'}. Most recent: ${gameName} on ${new Date(sessions[0].createdAt).toLocaleDateString()}.`;
   }
-
-  const latest = sessions[0];
-  homeSummary.innerHTML = `
-    <p><strong>Total saved sessions:</strong> ${sessions.length}</p>
-    <p><strong>Most recent:</strong> ${latest.gameName} on ${new Date(latest.createdAt).toLocaleDateString()}</p>
-  `;
+  container.append(paragraph);
 }

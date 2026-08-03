@@ -1,132 +1,78 @@
-function updateTake5Totals(players, rounds) {
-  const totals = {};
+import { rankTotals } from '../scoring/engines.js';
+import { createId } from '../state/repositories.js';
 
-  players.forEach((player) => {
-    totals[player] = 0;
+function element(tag, text, className) {
+  const node = document.createElement(tag);
+  if (text !== undefined) node.textContent = text;
+  if (className) node.className = className;
+  return node;
+}
+
+function scoreInputs(participants) {
+  const container = element('div');
+  participants.forEach((participant) => {
+    const row = element('div', undefined, 'inline-grid');
+    row.append(element('span', participant.displayName));
+    const input = element('input');
+    input.type = 'number'; input.inputMode = 'decimal'; input.dataset.participantId = participant.id;
+    row.append(input); container.append(row);
   });
+  return container;
+}
 
-  rounds.forEach((round) => {
-    players.forEach((player) => {
-      totals[player] += round[player] ?? 0;
+function readInputs(container) {
+  return Object.fromEntries([...container.querySelectorAll('input')].map((input) => [input.dataset.participantId, input.value]));
+}
+
+function renderTotals(container, session, engine) {
+  container.replaceChildren(element('h3', 'Totals'));
+  const totals = engine.calculateTotals(session.entries, session.participants);
+  session.totals = totals;
+  const names = new Map(session.participants.map((participant) => [participant.id, participant.displayName]));
+  rankTotals(totals, session.scoring.ranking).forEach(([id, score]) => container.append(element('div', `${names.get(id)}: ${score}`)));
+}
+
+export function renderEngineEditor(panel, session, engine, reportError) {
+  panel.replaceChildren();
+  panel.append(element('p', engine.id === 'round-sum' ? 'Add one round at a time.' : 'Enter one final total for every player.'));
+  if (engine.id === 'round-sum') {
+    let inputs = scoreInputs(session.participants);
+    const rounds = element('div');
+    const totals = element('div');
+    const addButton = element('button', 'Add round'); addButton.type = 'button';
+    panel.append(inputs, addButton, rounds, totals);
+    const update = () => {
+      rounds.replaceChildren(element('h3', 'Rounds'));
+      if (!session.entries.rounds.length) rounds.append(element('p', 'No rounds yet.'));
+      session.entries.rounds.forEach((round, index) => {
+        const scores = session.participants.map((p) => `${p.displayName} ${round.scores[p.id]}`).join(' | ');
+        rounds.append(element('div', `Round ${index + 1}: ${scores}`));
+      });
+      renderTotals(totals, session, engine);
+    };
+    addButton.addEventListener('click', () => {
+      const result = engine.validateEntry(readInputs(inputs), session.participants);
+      if (!result.valid) return reportError(result.error);
+      session.entries.rounds.push({ id: createId('round'), scores: result.entry });
+      const replacement = scoreInputs(session.participants);
+      inputs.replaceWith(replacement); inputs = replacement; update();
     });
-  });
-
-  return totals;
-}
-
-export function renderTake5Entry(entryPanel, state) {
-  const { players } = state.activeSession;
-
-  entryPanel.innerHTML = `
-    <p>Add one round at a time. Lower total wins.</p>
-    <div id="take5-inputs"></div>
-    <button id="add-round" type="button">Add round</button>
-    <div id="take5-rounds"></div>
-    <div id="take5-totals"></div>
-  `;
-
-  const inputsContainer = document.getElementById('take5-inputs');
-  const roundsContainer = document.getElementById('take5-rounds');
-  const totalsContainer = document.getElementById('take5-totals');
-
-  function renderDraftInputs() {
-    inputsContainer.innerHTML = players
-      .map(
-        (player) => `
-          <div class="inline-grid">
-            <span>${player}</span>
-            <input type="number" inputmode="numeric" data-player="${player}" />
-          </div>
-        `
-      )
-      .join('');
+    update();
+  } else {
+    const inputs = scoreInputs(session.participants);
+    inputs.addEventListener('input', () => { session.entries.values = readInputs(inputs); });
+    panel.append(inputs);
   }
+}
 
-  function renderRoundsAndTotals() {
-    const rounds = state.activeSession.rounds;
-
-    roundsContainer.innerHTML =
-      '<h3>Rounds</h3>' +
-      (rounds.length === 0
-        ? '<p>No rounds yet.</p>'
-        : rounds
-            .map(
-              (round, idx) =>
-                `<div>Round ${idx + 1}: ${players.map((player) => `${player} ${round[player]}`).join(' | ')}</div>`
-            )
-            .join(''));
-
-    const totals = updateTake5Totals(players, rounds);
-    state.activeSession.totals = totals;
-
-    const ranking = Object.entries(totals).sort((a, b) => a[1] - b[1]);
-    totalsContainer.innerHTML = '<h3>Totals</h3>' + ranking.map(([player, score]) => `<div>${player}: ${score}</div>`).join('');
+export function finalizeEditor(session, engine) {
+  if (engine.id === 'final-total') {
+    const parsed = engine.validateEntry(session.entries.values, session.participants);
+    if (!parsed.valid) return parsed;
+    session.entries.values = parsed.entry;
   }
-
-  renderDraftInputs();
-  renderRoundsAndTotals();
-
-  document.getElementById('add-round').addEventListener('click', () => {
-    const nextRound = {};
-    let valid = true;
-
-    inputsContainer.querySelectorAll('input').forEach((input) => {
-      const player = input.dataset.player;
-      const value = Number(input.value);
-
-      if (!player || Number.isNaN(value)) {
-        valid = false;
-        return;
-      }
-
-      nextRound[player] = value;
-    });
-
-    if (!valid) {
-      alert('Please type a number for each player.');
-      return;
-    }
-
-    state.activeSession.rounds.push(nextRound);
-    renderDraftInputs();
-    renderRoundsAndTotals();
-  });
-}
-
-export function renderRegenwormenEntry(entryPanel, players) {
-  entryPanel.innerHTML = `
-    <p>Enter final totals once. Highest total wins.</p>
-    <div id="regenwormen-inputs"></div>
-  `;
-
-  const inputsContainer = document.getElementById('regenwormen-inputs');
-  inputsContainer.innerHTML = players
-    .map(
-      (player) => `
-        <div class="inline-grid">
-          <span>${player}</span>
-          <input type="number" inputmode="numeric" data-player="${player}" />
-        </div>
-      `
-    )
-    .join('');
-}
-
-export function collectRegenwormenTotals(entryPanel) {
-  const totals = {};
-  let valid = true;
-
-  entryPanel.querySelectorAll('input').forEach((input) => {
-    const player = input.dataset.player;
-    const value = Number(input.value);
-
-    if (!player || Number.isNaN(value)) {
-      valid = false;
-      return;
-    }
-
-    totals[player] = value;
-  });
-
-  return { valid, totals };
+  const validation = engine.validateSession(session.entries, session.participants);
+  if (!validation.valid) return validation;
+  session.totals = engine.calculateTotals(session.entries, session.participants);
+  return { valid: true };
 }
