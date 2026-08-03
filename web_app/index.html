@@ -15,6 +15,7 @@
         <button class="tab is-active" data-view="home" type="button">Home</button>
         <button class="tab" data-view="new-session" type="button">New Session</button>
         <button class="tab" data-view="history" type="button">Session History</button>
+        <button class="tab" data-view="games" type="button">Manage Games</button>
       </nav>
 
       <section class="view" id="view-home">
@@ -50,6 +51,24 @@
           <div id="saved-list"></div>
         </section>
       </section>
+
+      <section class="view hidden" id="view-games">
+        <section class="card">
+          <h2>Manage Games</h2>
+          <form id="game-form">
+            <input id="editing-game-id" type="hidden" />
+            <label for="game-name">Game name</label>
+            <input id="game-name" type="text" required />
+            <label for="entry-mode">Entry mode</label>
+            <select id="entry-mode"><option value="round-sum">Scores by round</option><option value="final-total">One final total</option></select>
+            <label for="ranking">Ranking objective</label>
+            <select id="ranking"><option value="highest">Highest wins</option><option value="lowest">Lowest wins</option></select>
+            <div class="button-row"><button id="save-game" type="submit">Create game</button><button id="cancel-game-edit" class="secondary hidden" type="button">Cancel</button></div>
+          </form>
+          <div id="games-list"></div>
+        </section>
+      </section>
+      <p id="app-error" class="error hidden" role="alert"></p>
     </main>
 
     <script type="module" src="./src/main.js"></script>

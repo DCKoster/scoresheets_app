@@ -11,7 +11,7 @@ This project is split into branch-focused steps so each pull request has one cle
 5. feat/session-history-export-web
 6. feat/test-release-pwa
 
-## Scope lock for MVP
+## Original MVP scope
 
 - Supported games: Take 5! and Pick-omino only.
 - Input mode: typed numbers.
@@ -20,3 +20,7 @@ This project is split into branch-focused steps so each pull request has one cle
 - Sync: no cloud sync in v1.
 - Deployment: static web hosting with HTTPS.
 - Installability: user can install as a PWA on desktop and mobile.
+
+## Current architecture terminology
+
+The active implementation now separates a **game definition** from its registered **scoring engine**. An engine supplies an **entry mode**, while a game chooses a highest/lowest **ranking objective**. Every saved session keeps a **session scoring snapshot**, so template changes do not rewrite historical behavior. Composable scoring sections and online repositories remain deferred.

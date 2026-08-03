@@ -1,0 +1,55 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { CUSTOM_GAMES_KEY, LEGACY_KEY, LocalGameRepository, LocalSessionRepository, SESSIONS_KEY, migrateStorage } from '../web_app/src/state/repositories.js';
+
+class MemoryStorage {
+  constructor(values = {}) { this.values = new Map(Object.entries(values)); }
+  getItem(key) { return this.values.has(key) ? this.values.get(key) : null; }
+  setItem(key, value) { this.values.set(key, String(value)); }
+  removeItem(key) { this.values.delete(key); }
+}
+
+test('custom games validate, update, duplicate, delete, and reload', async () => {
+  const storage = new MemoryStorage();
+  const repository = new LocalGameRepository(storage);
+  const game = await repository.create({ name: ' My Game ', scoring: { engineId: 'round-sum', ranking: 'highest' } });
+  assert.equal(game.name, 'My Game');
+  await assert.rejects(() => repository.create({ name: 'my game', scoring: game.scoring }), /already exists/);
+  const updated = await repository.update(game.id, { name: 'Changed', scoring: { engineId: 'final-total', ranking: 'lowest' } });
+  const copy = await repository.duplicate(updated.id);
+  assert.equal(copy.name, 'Changed copy');
+  await repository.delete(updated.id);
+  assert.deepEqual((await new LocalGameRepository(storage).list()).filter((item) => item.origin === 'custom').map((item) => item.name), ['Changed copy']);
+  await assert.rejects(() => repository.update('take-5', { name: 'No', scoring: { engineId: 'round-sum', ranking: 'lowest' } }), /read-only/);
+});
+
+test('sessions serialize and retain snapshots independent of games', async () => {
+  const storage = new MemoryStorage();
+  const repository = new LocalSessionRepository(storage);
+  const session = { schemaVersion: 2, id: 's', gameId: 'deleted', gameNameAtPlay: 'Old name', participants: [], scoring: { engineId: 'final-total', ranking: 'lowest' }, entries: { values: {} }, totals: { p: 8 }, createdAt: 'now' };
+  await repository.save(session);
+  assert.deepEqual(await new LocalSessionRepository(storage).list(), [session]);
+});
+
+test('migration converts round and final legacy shapes and is idempotent', async () => {
+  const legacy = [
+    { gameId: 'take-5', gameName: 'Take 5!', gameType: 'per-round', players: ['A', 'B'], rounds: [{ A: 2, B: 4 }, { A: -1, B: 3 }], totals: { A: 1, B: 7 }, createdAt: 'x' },
+    { gameId: 'regenwormen', gameName: 'Regenwormen', players: ['A', 'B'], totals: { A: 5, B: 8 }, createdAt: 'y' },
+  ];
+  const storage = new MemoryStorage({ [LEGACY_KEY]: JSON.stringify(legacy) });
+  assert.equal((await migrateStorage(storage)).migrated, true);
+  const sessions = JSON.parse(storage.getItem(SESSIONS_KEY));
+  assert.equal(sessions[0].entries.rounds.length, 2);
+  assert.deepEqual(Object.values(sessions[0].totals), [1, 7]);
+  assert.equal(sessions[1].scoring.engineId, 'final-total');
+  assert.equal(storage.getItem(LEGACY_KEY), null);
+  assert.equal((await migrateStorage(storage)).migrated, false);
+});
+
+test('malformed migration preserves legacy storage', async () => {
+  const storage = new MemoryStorage({ [LEGACY_KEY]: '{bad json' });
+  const result = await migrateStorage(storage);
+  assert.match(result.error, /could not be migrated/);
+  assert.equal(storage.getItem(LEGACY_KEY), '{bad json');
+  assert.equal(storage.getItem(SESSIONS_KEY), null);
+});
