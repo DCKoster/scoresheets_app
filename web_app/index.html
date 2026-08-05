@@ -8,62 +8,75 @@
   </head>
   <body>
     <main class="app">
-      <h1>Scoresheets</h1>
-      <p class="subtitle">Simple Scoresheets</p>
+      <header class="app-header">
+        <div>
+          <h1>Scoresheets</h1>
+          <p class="subtitle" data-i18n="app.subtitle">Simple Scoresheets</p>
+        </div>
+        <button id="language" class="language-toggle" type="button" aria-label="Switch to Dutch">🇬🇧 EN</button>
+      </header>
 
-      <nav class="tabs" aria-label="Main views">
-        <button class="tab is-active" data-view="home" type="button">Home</button>
-        <button class="tab" data-view="new-session" type="button">New Session</button>
-        <button class="tab" data-view="history" type="button">Session History</button>
-        <button class="tab" data-view="games" type="button">Manage Games</button>
+      <nav class="tabs" aria-label="Main views" data-i18n-aria-label="nav.label">
+        <button class="tab is-active" data-view="home" data-i18n="nav.home" type="button">Home</button>
+        <button class="tab" data-view="new-session" data-i18n="nav.newSession" type="button">New Session</button>
+        <button class="tab" data-view="history" data-i18n="nav.history" type="button">Session History</button>
+        <button class="tab" data-view="statistics" data-i18n="nav.statistics" type="button">Statistics</button>
+        <button class="tab" data-view="games" data-i18n="nav.games" type="button">Manage Games</button>
       </nav>
 
       <section class="view" id="view-home">
         <section class="card">
-          <h2>Home</h2>
-          <p>Track scores for point-based games.</p>
+          <h2 data-i18n="home.title">Home</h2>
+          <p data-i18n="home.intro">Track scores for point-based games.</p>
           <div id="home-summary"></div>
         </section>
       </section>
 
       <section class="view hidden" id="view-new-session">
-        <section class="card">
-          <h2>New Session</h2>
-          <label for="game">Game</label>
+        <section class="card" id="new-session-card">
+          <h2 data-i18n="session.new">New Session</h2>
+          <label for="game" data-i18n="session.game">Game</label>
           <select id="game"></select>
 
-          <label for="players">Players (comma separated)</label>
+          <label for="players" data-i18n="session.players">Players (comma separated)</label>
           <input id="players" type="text" placeholder="Daniel, Illy" />
 
-          <button id="start-session" type="button">Start session</button>
+          <button id="start-session" data-i18n="session.start" type="button">Start session</button>
         </section>
 
         <section class="card hidden" id="session-panel">
           <h2 id="session-title"></h2>
           <div id="entry-panel"></div>
-          <button id="save-session" class="accent" type="button">Save session</button>
+          <button id="save-session" class="accent" data-i18n="session.save" type="button">Save session</button>
         </section>
       </section>
 
       <section class="view hidden" id="view-history">
         <section class="card">
-          <h2>Saved Sessions</h2>
+          <h2 data-i18n="session.savedTitle">Saved Sessions</h2>
           <div id="saved-list"></div>
+        </section>
+      </section>
+
+      <section class="view hidden" id="view-statistics">
+        <section class="card">
+          <h2 data-i18n="statistics.title">Statistics</h2>
+          <div id="statistics"></div>
         </section>
       </section>
 
       <section class="view hidden" id="view-games">
         <section class="card">
-          <h2>Manage Games</h2>
+          <h2 data-i18n="games.title">Manage Games</h2>
           <form id="game-form">
             <input id="editing-game-id" type="hidden" />
-            <label for="game-name">Game name</label>
+            <label for="game-name" data-i18n="games.name">Game name</label>
             <input id="game-name" type="text" required />
-            <label for="entry-mode">Entry mode</label>
-            <select id="entry-mode"><option value="round-sum">Scores by round</option><option value="final-total">One final total</option></select>
-            <label for="ranking">Ranking objective</label>
-            <select id="ranking"><option value="highest">Highest wins</option><option value="lowest">Lowest wins</option></select>
-            <div class="button-row"><button id="save-game" type="submit">Create game</button><button id="cancel-game-edit" class="secondary hidden" type="button">Cancel</button></div>
+            <label for="entry-mode" data-i18n="games.entryMode">Entry mode</label>
+            <select id="entry-mode"><option value="round-sum" data-i18n="games.engine.round-sum">Scores by round</option><option value="final-total" data-i18n="games.engine.final-total">One final total</option><option value="winner-only" data-i18n="games.engine.winner-only">Winner only</option></select>
+            <label id="ranking-label" for="ranking" data-i18n="games.ranking">Ranking objective</label>
+            <select id="ranking"><option value="highest" data-i18n="games.ranking.highest">Highest wins</option><option value="lowest" data-i18n="games.ranking.lowest">Lowest wins</option></select>
+            <div class="button-row"><button id="save-game" data-i18n="games.create" type="submit">Create game</button><button id="cancel-game-edit" class="secondary hidden" data-i18n="games.cancel" type="button">Cancel</button></div>
           </form>
           <div id="games-list"></div>
         </section>

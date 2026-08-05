@@ -16,11 +16,11 @@ The application resolves engines by engine ID; game names and game IDs do not co
 ## Features
 
 - Start games with at least two uniquely named players.
-- Score Take 5!, Regenwormen, or custom round/final-total games.
+- Use the complete interface in English or Dutch, with a remembered browser-local preference.
+- Score Take 5!, Pick-omino/Regenwormen, Dirty Pigs/Moddervarkens or custom round/final-total/winning only games.
 - Rank highest or lowest totals while retaining ties and accepting negative scores.
 - Create and edit custom templates; duplicate any template; delete custom templates.
 - Keep history usable after a template is changed or deleted.
-- Migrate legacy `scoresheets-web-v1` sessions to v2 once, preserving malformed legacy data and showing an error.
 - Render user-provided names through DOM text properties.
 
 Built-ins are read-only. User-authored templates can select registered engines only; custom JavaScript and formulas are not supported.

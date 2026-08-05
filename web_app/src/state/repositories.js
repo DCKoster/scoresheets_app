@@ -1,4 +1,4 @@
-import { BUILTIN_GAMES } from '../data/games.js';
+import { BUILTIN_GAMES, getAllGameNames, getGameName } from '../data/games.js';
 
 export const CUSTOM_GAMES_KEY = 'scoresheets-web-games-v2';
 export const SESSIONS_KEY = 'scoresheets-web-sessions-v2';
@@ -13,24 +13,27 @@ function readArray(storage, key) {
   const raw = storage.getItem(key);
   if (raw === null) return [];
   const parsed = JSON.parse(raw);
-  if (!Array.isArray(parsed)) throw new Error(`Stored ${key} data is not a list.`);
+  if (!Array.isArray(parsed)) throw new Error('errors.storedDataInvalid');
   return parsed;
 }
 
 export function validateGameName(name, games, exceptId = null) {
   const trimmed = String(name ?? '').trim();
-  if (!trimmed) return { valid: false, error: 'Game name is required.' };
+  if (!trimmed) return { valid: false, error: 'errors.gameNameRequired' };
   const duplicate = games.some(
-    (game) => game.id !== exceptId && game.name.trim().toLocaleLowerCase() === trimmed.toLocaleLowerCase(),
+    (game) => game.id !== exceptId && getAllGameNames(game).some((name) => name.trim().toLocaleLowerCase() === trimmed.toLocaleLowerCase()),
   );
   return duplicate
-    ? { valid: false, error: 'A game with that name already exists.' }
+    ? { valid: false, error: 'errors.gameNameDuplicate' }
     : { valid: true, name: trimmed };
 }
 
 function validateScoring(scoring) {
-  if (!['round-sum', 'final-total'].includes(scoring?.engineId)) throw new Error('Unknown scoring engine.');
-  if (!['highest', 'lowest'].includes(scoring?.ranking)) throw new Error('Unknown ranking objective.');
+  if (!['round-sum', 'final-total', 'winner-only'].includes(scoring?.engineId)) throw new Error('errors.scoringEngineUnknown');
+  const validRanking = scoring.engineId === 'winner-only'
+    ? scoring.ranking === 'selected'
+    : ['highest', 'lowest'].includes(scoring.ranking);
+  if (!validRanking) throw new Error('errors.rankingUnknown');
 }
 
 export class LocalGameRepository {
@@ -49,8 +52,8 @@ export class LocalGameRepository {
   async update(id, changes) {
     const games = await this.list();
     const existing = games.find((game) => game.id === id);
-    if (!existing) throw new Error('Game not found.');
-    if (existing.origin !== 'custom') throw new Error('Built-in games are read-only.');
+    if (!existing) throw new Error('errors.gameNotFound');
+    if (existing.origin !== 'custom') throw new Error('errors.builtinReadOnly');
     const result = validateGameName(changes.name, games, id);
     if (!result.valid) throw new Error(result.error);
     validateScoring(changes.scoring);
@@ -59,20 +62,21 @@ export class LocalGameRepository {
     this.storage.setItem(CUSTOM_GAMES_KEY, JSON.stringify(custom));
     return updated;
   }
-  async duplicate(id) {
+  async duplicate(id, locale = 'en', copyName = (name, number) => number === 1 ? `${name} copy` : `${name} copy ${number}`) {
     const games = await this.list();
     const source = games.find((game) => game.id === id);
-    if (!source) throw new Error('Game not found.');
-    let name = `${source.name} copy`;
+    if (!source) throw new Error('errors.gameNotFound');
+    const sourceName = getGameName(source, locale);
+    let name = copyName(sourceName, 1);
     let number = 2;
-    while (!validateGameName(name, games).valid) name = `${source.name} copy ${number++}`;
+    while (!validateGameName(name, games).valid) name = copyName(sourceName, number++);
     return this.create({ name, scoring: source.scoring });
   }
   async delete(id) {
     const games = await this.list();
     const existing = games.find((game) => game.id === id);
     if (!existing) return false;
-    if (existing.origin !== 'custom') throw new Error('Built-in games cannot be deleted.');
+    if (existing.origin !== 'custom') throw new Error('errors.builtinCannotDelete');
     this.storage.setItem(CUSTOM_GAMES_KEY, JSON.stringify(games.filter((game) => game.origin === 'custom' && game.id !== id)));
     return true;
   }
@@ -96,17 +100,17 @@ function numberMap(source, participants) {
   const result = {};
   participants.forEach((participant) => {
     const value = source?.[participant.displayName];
-    if (!Number.isFinite(Number(value))) throw new Error('Legacy session contains an invalid score.');
+    if (!Number.isFinite(Number(value))) throw new Error('errors.legacyScoreInvalid');
     result[participant.id] = Number(value);
   });
   return result;
 }
 
 export function migrateLegacySessions(legacy) {
-  if (!Array.isArray(legacy)) throw new Error('Legacy session data is not a list.');
+  if (!Array.isArray(legacy)) throw new Error('errors.legacyDataInvalid');
   return legacy.map((old) => {
     const names = Array.isArray(old.players) ? old.players : Object.keys(old.totals ?? {});
-    if (names.length < 2 || names.some((name) => !String(name).trim())) throw new Error('Legacy session has invalid players.');
+    if (names.length < 2 || names.some((name) => !String(name).trim())) throw new Error('errors.legacyPlayersInvalid');
     const participants = names.map((name) => ({ id: createId('participant'), displayName: String(name).trim() }));
     const isRound = old.gameId === 'take-5' || old.gameType === 'per-round' || old.gameType === 'round-sum';
     const engineId = isRound ? 'round-sum' : 'final-total';
@@ -136,11 +140,11 @@ export async function migrateStorage(storage) {
     const migrated = migrateLegacySessions(JSON.parse(storage.getItem(LEGACY_KEY)));
     const serialized = JSON.stringify(migrated);
     storage.setItem(SESSIONS_KEY, serialized);
-    if (storage.getItem(SESSIONS_KEY) !== serialized) throw new Error('Could not verify migrated data.');
+    if (storage.getItem(SESSIONS_KEY) !== serialized) throw new Error('errors.migrationVerify');
     storage.removeItem(LEGACY_KEY);
     return { migrated: true, count: migrated.length };
   } catch (error) {
     try { storage.removeItem(SESSIONS_KEY); } catch { /* Preserve the original migration error. */ }
-    return { migrated: false, error: `Existing sessions could not be migrated: ${error.message}` };
+    return { migrated: false, error: 'errors.migration', parameters: { message: error.message } };
   }
 }

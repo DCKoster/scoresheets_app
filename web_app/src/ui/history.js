@@ -1,24 +1,65 @@
 import { rankTotals } from '../scoring/engines.js';
+import { getGameName } from '../data/games.js';
 
 function node(tag, text, className) { const value = document.createElement(tag); value.textContent = text; if (className) value.className = className; return value; }
 
-export function renderSavedSessions(savedList, sessions, games, onDelete) {
-  savedList.replaceChildren();
-  if (!sessions.length) return savedList.append(node('p', 'No sessions saved yet.'));
-  const currentNames = new Map(games.map((game) => [game.id, game.name]));
+export function groupSessionsByGame(sessions) {
+  const groups = new Map();
   sessions.forEach((session) => {
-    const item = node('div', '', 'list-item');
-    item.append(node('strong', currentNames.get(session.gameId) ?? session.gameNameAtPlay));
-    item.append(document.createElement('br'), node('small', new Date(session.createdAt).toLocaleString()));
-    const names = new Map(session.participants.map((participant) => [participant.id, participant.displayName]));
-    const scores = rankTotals(session.totals, session.scoring.ranking).map(([id, score]) => `${names.get(id) ?? 'Unknown'}: ${score}`).join(' | ');
+    const id = String(session.gameId ?? session.gameNameAtPlay ?? '');
+    if (!groups.has(id)) groups.set(id, { gameId: id, gameNameAtPlay: session.gameNameAtPlay || id, sessions: [] });
+    groups.get(id).sessions.push(session);
+  });
+  return [...groups.values()];
+}
+
+function renderSession(session, currentNames, onDelete, i18n) {
+  const item = node('div', '', 'list-item');
+  const heading = node('div', '', 'history-session-heading');
+  heading.append(node('strong', currentNames.get(session.gameId) ?? session.gameNameAtPlay));
+  const button = node('button', '🗑', 'delete history-delete');
+  button.type = 'button'; button.setAttribute('aria-label', i18n.t('games.delete')); button.title = i18n.t('games.delete');
+  button.addEventListener('click', () => onDelete(session.id));
+  heading.append(button);
+  item.append(heading, node('small', i18n.formatDateTime(session.createdAt)));
+  const names = new Map(session.participants.map((participant) => [participant.id, participant.displayName]));
+  if (session.scoring.engineId === 'winner-only') {
+    const winner = session.entries?.winnerId;
+    item.append(node('p', winner === null ? i18n.t('session.noWinner') : i18n.t('session.winnerResult', { player: names.get(winner) ?? i18n.t('common.unknown') })));
+  } else {
+    const scores = rankTotals(session.totals, session.scoring.ranking).map(([id, score]) => `${names.get(id) ?? i18n.t('common.unknown')}: ${score}`).join(' | ');
     item.append(node('p', scores));
-    if (session.scoring.engineId === 'round-sum') {
-      const details = node('details', ''); details.append(node('summary', 'Round details'));
-      session.entries.rounds.forEach((round, index) => details.append(node('div', `Round ${index + 1}: ${session.participants.map((p) => `${p.displayName} ${round.scores[p.id]}`).join(' | ')}`)));
-      item.append(details);
-    }
-    const button = node('button', 'Delete', 'delete'); button.type = 'button'; button.addEventListener('click', () => onDelete(session.id));
-    item.append(button); savedList.append(item);
+  }
+  if (session.scoring.engineId === 'round-sum') {
+    const details = node('details', ''); details.append(node('summary', i18n.t('session.roundDetails')));
+    session.entries.rounds.forEach((round, index) => {
+      const scores = session.participants.map((participant) => `${participant.displayName} ${round.scores[participant.id]}`).join(' | ');
+      details.append(node('div', i18n.t('session.round', { number: index + 1, scores })));
+    });
+    item.append(details);
+  }
+  return item;
+}
+
+export function renderSavedSessions(savedList, sessions, games, onDelete, i18n, grouped = false, onGroupChange = () => {}) {
+  savedList.replaceChildren();
+  const toggle = node('button', i18n.t('session.groupByGame'), 'secondary history-group-toggle');
+  toggle.type = 'button'; toggle.setAttribute('aria-pressed', String(grouped));
+  toggle.addEventListener('click', () => onGroupChange(!grouped));
+  savedList.append(toggle);
+  if (!sessions.length) return savedList.append(node('p', i18n.t('session.noneSaved')));
+
+  const currentNames = new Map(games.map((game) => [game.id, getGameName(game, i18n.locale)]));
+  if (!grouped) {
+    sessions.forEach((session) => savedList.append(renderSession(session, currentNames, onDelete, i18n)));
+    return;
+  }
+
+  groupSessionsByGame(sessions).forEach((group) => {
+    const details = node('details', '', 'history-game-group');
+    const gameName = currentNames.get(group.gameId) ?? group.gameNameAtPlay;
+    details.append(node('summary', i18n.t('session.gameGroup', { game: gameName, count: group.sessions.length })));
+    group.sessions.forEach((session) => details.append(renderSession(session, currentNames, onDelete, i18n)));
+    savedList.append(details);
   });
 }

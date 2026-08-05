@@ -8,13 +8,15 @@ function element(tag, text, className) {
   return node;
 }
 
-function scoreInputs(participants) {
+function scoreInputs(participants, values = {}, onChange = () => {}, allowFormula = false) {
   const container = element('div');
   participants.forEach((participant) => {
     const row = element('div', undefined, 'inline-grid');
     row.append(element('span', participant.displayName));
     const input = element('input');
-    input.type = 'number'; input.inputMode = 'decimal'; input.dataset.participantId = participant.id;
+    input.type = allowFormula ? 'text' : 'number'; input.inputMode = 'decimal'; input.dataset.participantId = participant.id;
+    input.value = values[participant.id] ?? '';
+    input.addEventListener('input', () => onChange(readInputs(container)));
     row.append(input); container.append(row);
   });
   return container;
@@ -24,43 +26,66 @@ function readInputs(container) {
   return Object.fromEntries([...container.querySelectorAll('input')].map((input) => [input.dataset.participantId, input.value]));
 }
 
-function renderTotals(container, session, engine) {
-  container.replaceChildren(element('h3', 'Totals'));
+function renderTotals(container, session, engine, i18n) {
+  container.replaceChildren(element('h3', i18n.t('session.totals')));
   const totals = engine.calculateTotals(session.entries, session.participants);
   session.totals = totals;
   const names = new Map(session.participants.map((participant) => [participant.id, participant.displayName]));
   rankTotals(totals, session.scoring.ranking).forEach(([id, score]) => container.append(element('div', `${names.get(id)}: ${score}`)));
 }
 
-export function renderEngineEditor(panel, session, engine, reportError) {
+function renderWinnerPicker(panel, session, i18n) {
+  panel.append(element('p', i18n.t('session.winnerHelp')));
+  const fieldset = element('fieldset', undefined, 'winner-picker');
+  fieldset.append(element('legend', i18n.t('session.winner')));
+  const groupName = `winner-${session.id}`;
+  const addOption = (id, label, value) => {
+    const option = element('label', undefined, 'winner-option');
+    const input = element('input');
+    input.type = 'radio'; input.name = groupName; input.id = id; input.value = value;
+    input.checked = Object.hasOwn(session.entries, 'winnerId') && session.entries.winnerId === (value === '__none__' ? null : value);
+    input.addEventListener('change', () => { session.entries.winnerId = input.value === '__none__' ? null : input.value; });
+    option.append(input, element('span', label)); fieldset.append(option);
+  };
+  session.participants.forEach((participant) => addOption(`winner-${session.id}-${participant.id}`, participant.displayName, participant.id));
+  addOption(`winner-${session.id}-none`, i18n.t('session.noWinner'), '__none__');
+  panel.append(fieldset);
+}
+
+export function renderEngineEditor(panel, session, engine, reportError, i18n, draft = {}, onDraftChange = () => {}) {
   panel.replaceChildren();
-  panel.append(element('p', engine.id === 'round-sum' ? 'Add one round at a time.' : 'Enter one final total for every player.'));
+  if (engine.id === 'winner-only') {
+    renderWinnerPicker(panel, session, i18n);
+    return;
+  }
+  panel.append(element('p', i18n.t(engine.id === 'round-sum' ? 'session.roundHelp' : 'session.finalHelp')));
   if (engine.id === 'round-sum') {
-    let inputs = scoreInputs(session.participants);
+    let currentDraft = draft;
+    let inputs = scoreInputs(session.participants, currentDraft, (values) => { currentDraft = values; onDraftChange(values); }, true);
     const rounds = element('div');
     const totals = element('div');
-    const addButton = element('button', 'Add round'); addButton.type = 'button';
+    const addButton = element('button', i18n.t('session.addRound')); addButton.type = 'button';
     panel.append(inputs, addButton, rounds, totals);
     const update = () => {
-      rounds.replaceChildren(element('h3', 'Rounds'));
-      if (!session.entries.rounds.length) rounds.append(element('p', 'No rounds yet.'));
+      rounds.replaceChildren(element('h3', i18n.t('session.rounds')));
+      if (!session.entries.rounds.length) rounds.append(element('p', i18n.t('session.noRounds')));
       session.entries.rounds.forEach((round, index) => {
         const scores = session.participants.map((p) => `${p.displayName} ${round.scores[p.id]}`).join(' | ');
-        rounds.append(element('div', `Round ${index + 1}: ${scores}`));
+        rounds.append(element('div', i18n.t('session.round', { number: index + 1, scores })));
       });
-      renderTotals(totals, session, engine);
+      renderTotals(totals, session, engine, i18n);
     };
     addButton.addEventListener('click', () => {
       const result = engine.validateEntry(readInputs(inputs), session.participants);
       if (!result.valid) return reportError(result.error);
       session.entries.rounds.push({ id: createId('round'), scores: result.entry });
-      const replacement = scoreInputs(session.participants);
+      currentDraft = {}; onDraftChange(currentDraft);
+      const replacement = scoreInputs(session.participants, currentDraft, (values) => { currentDraft = values; onDraftChange(values); }, true);
       inputs.replaceWith(replacement); inputs = replacement; update();
     });
     update();
   } else {
-    const inputs = scoreInputs(session.participants);
-    inputs.addEventListener('input', () => { session.entries.values = readInputs(inputs); });
+    const inputs = scoreInputs(session.participants, session.entries.values, (values) => { session.entries.values = values; onDraftChange(values); });
     panel.append(inputs);
   }
 }

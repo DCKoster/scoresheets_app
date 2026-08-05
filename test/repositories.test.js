@@ -14,13 +14,32 @@ test('custom games validate, update, duplicate, delete, and reload', async () =>
   const repository = new LocalGameRepository(storage);
   const game = await repository.create({ name: ' My Game ', scoring: { engineId: 'round-sum', ranking: 'highest' } });
   assert.equal(game.name, 'My Game');
-  await assert.rejects(() => repository.create({ name: 'my game', scoring: game.scoring }), /already exists/);
+  await assert.rejects(() => repository.create({ name: 'my game', scoring: game.scoring }), /errors\.gameNameDuplicate/);
   const updated = await repository.update(game.id, { name: 'Changed', scoring: { engineId: 'final-total', ranking: 'lowest' } });
   const copy = await repository.duplicate(updated.id);
   assert.equal(copy.name, 'Changed copy');
   await repository.delete(updated.id);
   assert.deepEqual((await new LocalGameRepository(storage).list()).filter((item) => item.origin === 'custom').map((item) => item.name), ['Changed copy']);
-  await assert.rejects(() => repository.update('take-5', { name: 'No', scoring: { engineId: 'round-sum', ranking: 'lowest' } }), /read-only/);
+  await assert.rejects(() => repository.update('take-5', { name: 'No', scoring: { engineId: 'round-sum', ranking: 'lowest' } }), /errors\.builtinReadOnly/);
+});
+
+test('built-in aliases are reserved and duplicates use the active locale', async () => {
+  const repository = new LocalGameRepository(new MemoryStorage());
+  const scoring = { engineId: 'final-total', ranking: 'highest' };
+  await assert.rejects(() => repository.create({ name: 'Pick-omino', scoring }), /errors\.gameNameDuplicate/);
+  await assert.rejects(() => repository.create({ name: 'regenwormen', scoring }), /errors\.gameNameDuplicate/);
+  const copy = await repository.duplicate('regenwormen', 'nl', (name) => `Kopie van ${name}`);
+  assert.equal(copy.name, 'Kopie van Regenwormen');
+  const dirtyPig = (await repository.list()).find((game) => game.id === 'dirty-pig');
+  assert.deepEqual(dirtyPig.scoring, { engineId: 'winner-only', ranking: 'selected' });
+  await assert.rejects(() => repository.create({ name: 'Moddervarkens', scoring }), /errors\.gameNameDuplicate/);
+});
+
+test('winner-only games use the selected-result ranking', async () => {
+  const repository = new LocalGameRepository(new MemoryStorage());
+  const game = await repository.create({ name: 'Quick round', scoring: { engineId: 'winner-only', ranking: 'selected' } });
+  assert.deepEqual(game.scoring, { engineId: 'winner-only', ranking: 'selected' });
+  await assert.rejects(() => repository.create({ name: 'Bad quick round', scoring: { engineId: 'winner-only', ranking: 'highest' } }), /errors\.rankingUnknown/);
 });
 
 test('sessions serialize and retain snapshots independent of games', async () => {
@@ -49,7 +68,8 @@ test('migration converts round and final legacy shapes and is idempotent', async
 test('malformed migration preserves legacy storage', async () => {
   const storage = new MemoryStorage({ [LEGACY_KEY]: '{bad json' });
   const result = await migrateStorage(storage);
-  assert.match(result.error, /could not be migrated/);
+  assert.equal(result.error, 'errors.migration');
+  assert.ok(result.parameters.message);
   assert.equal(storage.getItem(LEGACY_KEY), '{bad json');
   assert.equal(storage.getItem(SESSIONS_KEY), null);
 });
