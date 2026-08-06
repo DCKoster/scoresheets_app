@@ -140,6 +140,27 @@ details { margin: 8px 0; }
 .winner-picker legend { font-weight: 700; margin-bottom: 6px; }
 .winner-option { align-items: center; display: flex; font-weight: 400; gap: 8px; margin: 8px 0; }
 .winner-option input { height: 18px; width: 18px; }
+.add-game { width: auto; }
+.game-filters { display: grid; grid-template-columns: minmax(0, 1fr) 190px; gap: 8px; margin-top: 16px; }
+.game-filters > * { margin-top: 0; }
+.game-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
+.game-card { border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 2px 7px rgb(22 33 62 / 8%); display: flex; flex-direction: column; gap: 12px; min-height: 154px; padding: 14px; transition: box-shadow .15s ease, transform .15s ease; }
+.game-card:hover { box-shadow: 0 8px 18px rgb(22 33 62 / 15%); transform: translateY(-2px); }
+.game-card:focus { outline: 3px solid #8abbff; outline-offset: 2px; }
+.game-card h3 { margin: 0; }
+.game-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.game-tag { border-radius: 999px; font-size: .8rem; line-height: 1.25; padding: 4px 8px; }
+.category-tag { background: #eef0f4; color: #354052; }
+.competitive-tag { background: #e9efff; color: #174a9d; }
+.cooperative-tag { background: #e4f7ed; color: #12633d; }
+.scoring-tag, .builtin-tag { background: #f6f1e3; color: #65562d; }
+.game-actions { display: flex; gap: 6px; margin-top: auto; }
+.game-action { flex: 0 0 auto; font-size: 1.1rem; height: 40px; margin: 0; padding: 6px; width: 40px; }
+.score-category-row { display: flex; gap: 8px; margin-top: 8px; }
+.score-category-row input { margin: 0; }
+.score-category-row button { flex: 0 0 42px; margin: 0; }
+.category-input-grid { display: grid; gap: 6px; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); }
+.visually-hidden { height: 1px; margin: -1px; overflow: hidden; position: absolute; width: 1px; clip: rect(0 0 0 0); }
 
 .list-item {
   border-top: 1px solid var(--border);
@@ -177,6 +198,8 @@ details { margin: 8px 0; }
 .statistics-game-list { margin: 8px 0; padding-left: 20px; }
 
 @media (max-width: 600px) {
+  .game-filters, .game-grid { grid-template-columns: 1fr; }
+  .game-card { min-height: 0; }
   .statistics-tabs { gap: 4px; }
   .statistics-tab { font-size: .9rem; padding: 9px 6px; }
   .statistics-leaderboard thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

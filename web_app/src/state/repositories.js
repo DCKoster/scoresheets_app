@@ -5,6 +5,7 @@ export const CUSTOM_GAMES_KEY = 'scoresheets-web-games-v2';
 export const SESSIONS_KEY = 'scoresheets-web-sessions-v2';
 export const LEGACY_KEY = 'scoresheets-web-v1';
 export const BACKUP_SCHEMA_VERSION = 1;
+export const CATEGORY_MAX_LENGTH = 40;
 
 export function createId(prefix = 'id') {
   if (globalThis.crypto?.randomUUID) return `${prefix}-${globalThis.crypto.randomUUID()}`;
@@ -38,6 +39,43 @@ function validateScoring(scoring) {
   if (!validRanking) throw new Error('errors.rankingUnknown');
 }
 
+export function normalizeCategory(value) {
+  const trimmed = String(value ?? '').trim();
+  return trimmed || undefined;
+}
+
+function normalizeScoreCategories(categories) {
+  if (!Array.isArray(categories)) return [];
+  return categories.map((value) => String(value ?? '').trim()).filter(Boolean);
+}
+
+function validateMetadata(input) {
+  const category = normalizeCategory(input.category);
+  const scoreCategories = normalizeScoreCategories(input.scoreCategories);
+  if (category && category.length > CATEGORY_MAX_LENGTH) throw new Error('errors.categoryTooLong');
+  if (scoreCategories.some((value) => value.length > CATEGORY_MAX_LENGTH)) throw new Error('errors.scoreCategoryTooLong');
+  if (new Set(scoreCategories.map(normalizedName)).size !== scoreCategories.length) throw new Error('errors.scoreCategoryDuplicate');
+  const playMode = input.playMode === 'cooperative' ? 'cooperative' : input.playMode === 'competitive' ? 'competitive' : undefined;
+  if (!playMode) throw new Error('errors.playModeUnknown');
+  const categoryScoring = scoreCategories.length ? input.categoryScoring : undefined;
+  if (scoreCategories.length && !['per-round', 'final-total'].includes(categoryScoring)) throw new Error('errors.categoryScoringUnknown');
+  if (scoreCategories.length && ((categoryScoring === 'per-round' && input.scoring?.engineId !== 'round-sum') || (categoryScoring === 'final-total' && input.scoring?.engineId !== 'final-total'))) throw new Error('errors.categoryScoringMismatch');
+  if (scoreCategories.length && input.scoring?.engineId === 'winner-only') throw new Error('errors.categoryEngineInvalid');
+  if (playMode === 'cooperative' && input.scoring?.engineId !== 'winner-only') throw new Error('errors.cooperativeEngineInvalid');
+  return { ...(category ? { category } : {}), playMode, scoreCategories, ...(categoryScoring ? { categoryScoring } : {}) };
+}
+
+function normalizeStoredGame(game) {
+  if (!game || typeof game !== 'object') return game;
+  const category = normalizeCategory(game.category);
+  const scoreCategories = normalizeScoreCategories(game.scoreCategories ?? (game.categories === true ? [] : game.categories));
+  const normalized = { ...game, schemaVersion: game.schemaVersion ?? 2, category: category, playMode: game.playMode === 'cooperative' ? 'cooperative' : 'competitive', scoreCategories };
+  if (!category) delete normalized.category;
+  if (scoreCategories.length) normalized.categoryScoring = game.categoryScoring ?? (game.scoring?.engineId === 'round-sum' ? 'per-round' : 'final-total');
+  else delete normalized.categoryScoring;
+  return normalized;
+}
+
 function normalizedName(name) { return String(name ?? '').trim().toLocaleLowerCase(); }
 
 function validParticipants(participants) {
@@ -54,12 +92,17 @@ function validateBackupSession(session) {
     || typeof session.createdAt !== 'string' || !validParticipants(session.participants)) return false;
   try {
     validateScoring(session.scoring);
+    if (session.playMode === 'cooperative' && session.scoring.engineId !== 'winner-only') return false;
     const engine = getScoringEngine(session.scoring.engineId);
-    if (!engine.validateSession(session.entries, session.participants).valid) return false;
+    const scoreCategories = Array.isArray(session.scoreCategories) ? session.scoreCategories : [];
+    if (scoreCategories.length && (!['round-sum', 'final-total'].includes(session.scoring.engineId) || !['per-round', 'final-total'].includes(session.categoryScoring))) return false;
+    if (!engine.validateSession(session.entries, session.participants, scoreCategories).valid) return false;
     if (session.scoring.engineId === 'round-sum'
-      && (!session.entries.rounds.every((round) => typeof round?.id === 'string' && round.id && engine.validateEntry(round.scores ?? {}, session.participants).valid)
-        || new Set(session.entries.rounds.map((round) => round.id)).size !== session.entries.rounds.length)) return false;
-    const totals = engine.calculateTotals(session.entries, session.participants);
+      && (!session.entries.rounds.every((round) => typeof round?.id === 'string' && round.id)
+        || new Set(session.entries.rounds.map((round) => round.id)).size !== session.entries.rounds.length
+        || !session.entries.rounds.every((round) => engine.validateEntry(round.scores ?? {}, session.participants, scoreCategories).valid))) return false;
+    if (session.scoring.engineId === 'final-total' && !engine.validateEntry(session.entries.values ?? {}, session.participants, scoreCategories).valid) return false;
+    const totals = engine.calculateTotals(session.entries, session.participants, scoreCategories);
     if (!session.totals || typeof session.totals !== 'object' || Object.keys(session.totals).length !== Object.keys(totals).length) return false;
     return Object.entries(totals).every(([id, total]) => Number.isFinite(total) && session.totals[id] === total);
   } catch { return false; }
@@ -69,12 +112,12 @@ function validateBackupGame(game) {
   try {
     return !!game && typeof game === 'object' && typeof game.id === 'string' && game.id
       && typeof game.name === 'string' && !!game.name.trim() && game.origin === 'custom'
-      && (validateScoring(game.scoring), true);
+      && (validateScoring(game.scoring), validateMetadata({ ...game, playMode: game.playMode ?? 'competitive' }), true);
   } catch { return false; }
 }
 
 export async function exportBackup(storage) {
-  const games = readArray(storage, CUSTOM_GAMES_KEY).filter((game) => game?.origin === 'custom');
+  const games = readArray(storage, CUSTOM_GAMES_KEY).filter((game) => game?.origin === 'custom').map(normalizeStoredGame);
   const sessions = readArray(storage, SESSIONS_KEY);
   return { schemaVersion: BACKUP_SCHEMA_VERSION, sessions, customGames: games };
 }
@@ -101,7 +144,9 @@ export async function importBackup(storage, backup) {
   for (const game of backup.customGames) {
     if (gameIds.has(game.id) || gameNames.has(normalizedName(game.name))) skippedGames += 1;
     else {
-      gameIds.add(game.id); gameNames.add(normalizedName(game.name)); games.push({ ...game, schemaVersion: 2, origin: 'custom', scoring: { ...game.scoring } });
+      gameIds.add(game.id); gameNames.add(normalizedName(game.name));
+      const metadata = validateMetadata({ ...game, playMode: game.playMode ?? 'competitive' });
+      games.push({ ...game, schemaVersion: 3, origin: 'custom', scoring: { ...game.scoring }, ...metadata });
     }
   }
   if (sessions.length) storage.setItem(SESSIONS_KEY, JSON.stringify([...sessions, ...localSessions]));
@@ -111,13 +156,14 @@ export async function importBackup(storage, backup) {
 
 export class LocalGameRepository {
   constructor(storage) { this.storage = storage; }
-  async list() { return [...BUILTIN_GAMES, ...readArray(this.storage, CUSTOM_GAMES_KEY)]; }
+  async list() { return [...BUILTIN_GAMES, ...readArray(this.storage, CUSTOM_GAMES_KEY).map(normalizeStoredGame)]; }
   async create(input) {
     const games = await this.list();
     const result = validateGameName(input.name, games);
     if (!result.valid) throw new Error(result.error);
     validateScoring(input.scoring);
-    const game = { schemaVersion: 2, id: createId('game'), name: result.name, origin: 'custom', scoring: { ...input.scoring } };
+    const metadata = validateMetadata({ ...input, playMode: input.playMode ?? 'competitive' });
+    const game = { schemaVersion: 3, id: createId('game'), name: result.name, origin: 'custom', scoring: { ...input.scoring }, ...metadata };
     const custom = games.filter((item) => item.origin === 'custom');
     this.storage.setItem(CUSTOM_GAMES_KEY, JSON.stringify([...custom, game]));
     return game;
@@ -130,7 +176,8 @@ export class LocalGameRepository {
     const result = validateGameName(changes.name, games, id);
     if (!result.valid) throw new Error(result.error);
     validateScoring(changes.scoring);
-    const updated = { ...existing, name: result.name, scoring: { ...changes.scoring } };
+    const metadata = validateMetadata({ ...existing, ...changes, playMode: changes.playMode ?? existing.playMode ?? 'competitive' });
+    const updated = { ...existing, schemaVersion: 3, name: result.name, scoring: { ...changes.scoring }, ...metadata };
     const custom = games.filter((game) => game.origin === 'custom').map((game) => game.id === id ? updated : game);
     this.storage.setItem(CUSTOM_GAMES_KEY, JSON.stringify(custom));
     return updated;
@@ -143,7 +190,7 @@ export class LocalGameRepository {
     let name = copyName(sourceName, 1);
     let number = 2;
     while (!validateGameName(name, games).valid) name = copyName(sourceName, number++);
-    return this.create({ name, scoring: source.scoring });
+    return this.create({ name, scoring: source.scoring, category: source.category, playMode: source.playMode, scoreCategories: source.scoreCategories, categoryScoring: source.categoryScoring });
   }
   async delete(id) {
     const games = await this.list();

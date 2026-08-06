@@ -85,8 +85,8 @@ export function calculateStatistics(sessions = []) {
 
     if (session.scoring?.engineId === 'winner-only') {
       const participants = session.participants.filter((participant) => normalizePlayerName(participant?.displayName));
-      const winnerId = session.entries?.winnerId;
-      if (!Object.hasOwn(session.entries ?? {}, 'winnerId') || (winnerId !== null && !participants.some((participant) => participant.id === winnerId))) continue;
+      const winnerIds = Array.isArray(session.entries?.winnerIds) ? session.entries.winnerIds : session.entries?.winnerId == null ? [] : [session.entries.winnerId];
+      if ((!Object.hasOwn(session.entries ?? {}, 'winnerIds') && !Object.hasOwn(session.entries ?? {}, 'winnerId')) || winnerIds.some((id) => !participants.some((participant) => participant.id === id))) continue;
       const gameSummary = ensureGame();
       for (const participant of participants) {
         const key = normalizePlayerName(participant.displayName);
@@ -95,7 +95,7 @@ export function calculateStatistics(sessions = []) {
           summary = makeSummary(key, String(participant.displayName).trim());
           players.set(key, summary);
         }
-        const won = participant.id === winnerId;
+        const won = winnerIds.includes(participant.id);
         addResult(summary, game, null, won);
 
         let gamePlayer = gameSummary.players.get(key);

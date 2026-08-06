@@ -25,8 +25,22 @@ test('round-sum accepts safe arithmetic formulas while final totals remain numer
   assert.equal(finalTotalEngine.validateEntry({ a: '30+40', b: 2 }, players).valid, false);
 });
 
-test('winner-only engine requires an explicit participant or no-winner result', () => {
+test('numeric engines support named score categories and aggregate totals', () => {
+  const categories = ['Red', 'Blue'];
+  const round = roundSumEngine.validateEntry({ a: { Red: '2', Blue: '3' }, b: { Red: '-1', Blue: '4' } }, players, categories);
+  assert.deepEqual(round.entry, { a: { Red: 2, Blue: 3 }, b: { Red: -1, Blue: 4 } });
+  const entries = { rounds: [{ id: 'r', scores: round.entry }] };
+  assert.deepEqual(roundSumEngine.calculateTotals(entries, players, categories), { a: 5, b: 3 });
+  assert.deepEqual(roundSumEngine.calculateCategoryTotals(entries, players, categories), { Red: { a: 2, b: -1 }, Blue: { a: 3, b: 4 } });
+  const final = finalTotalEngine.validateEntry({ a: { Red: '5', Blue: '1' }, b: { Red: '2', Blue: '7' } }, players, categories);
+  assert.deepEqual(finalTotalEngine.calculateTotals({ values: final.entry }, players, categories), { a: 6, b: 9 });
+});
+
+test('winner-only engine accepts multiple winners and legacy results', () => {
   assert.equal(winnerOnlyEngine.validateSession({}, players).valid, false);
+  assert.equal(winnerOnlyEngine.validateSession({ winnerIds: [] }, players).valid, true);
+  assert.equal(winnerOnlyEngine.validateSession({ winnerIds: ['a', 'b'] }, players).valid, true);
+  assert.equal(winnerOnlyEngine.validateSession({ winnerIds: ['a', 'a'] }, players).valid, false);
   assert.equal(winnerOnlyEngine.validateSession({ winnerId: null }, players).valid, true);
   assert.equal(winnerOnlyEngine.validateSession({ winnerId: 'a' }, players).valid, true);
   assert.equal(winnerOnlyEngine.validateSession({ winnerId: 'missing' }, players).valid, false);

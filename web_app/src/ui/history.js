@@ -27,8 +27,8 @@ function renderSession(session, currentNames, onDelete, onEdit, i18n) {
   item.append(heading, node('small', i18n.formatDateTime(session.createdAt)));
   const names = new Map(session.participants.map((participant) => [participant.id, participant.displayName]));
   if (session.scoring.engineId === 'winner-only') {
-    const winner = session.entries?.winnerId;
-    item.append(node('p', winner === null ? i18n.t('session.noWinner') : i18n.t('session.winnerResult', { player: names.get(winner) ?? i18n.t('common.unknown') })));
+    const winners = Array.isArray(session.entries?.winnerIds) ? session.entries.winnerIds : session.entries?.winnerId == null ? [] : [session.entries.winnerId];
+    item.append(node('p', winners.length ? i18n.t('session.winnerResult', { player: winners.map((id) => names.get(id) ?? i18n.t('common.unknown')).join(', ') }) : i18n.t('session.noWinner')));
   } else {
     const scores = rankTotals(session.totals, session.scoring.ranking).map(([id, score]) => `${names.get(id) ?? i18n.t('common.unknown')}: ${score}`).join(' | ');
     item.append(node('p', scores));

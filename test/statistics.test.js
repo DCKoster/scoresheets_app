@@ -62,6 +62,13 @@ test('winner-only sessions count no-winner results as played without awarding a 
   assert.equal(result.players[0].averageScore, null);
 });
 
+test('winner-only sessions award every selected winner', () => {
+  const players = [{ id: 'a', displayName: 'A' }, { id: 'b', displayName: 'B' }];
+  const session = { id: 'co-op', gameId: 'quick', gameNameAtPlay: 'Quick', participants: players, scoring: { engineId: 'winner-only', ranking: 'selected' }, entries: { winnerIds: ['a', 'b'] }, totals: {} };
+  const result = calculateStatistics([session]);
+  assert.deepEqual(result.players.map(({ displayName, wins }) => [displayName, wins]), [['A', 1], ['B', 1]]);
+});
+
 test('game standings average only numeric scores when game history includes winner-only sessions', () => {
   const numeric = session('one', 'highest', { A: 10, B: 4 }, 'quick');
   const winnerOnly = {

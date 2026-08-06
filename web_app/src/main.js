@@ -18,6 +18,7 @@ const dom = {
   entryPanel: byId('entry-panel'), savedList: byId('saved-list'), homeSummary: byId('home-summary'),
   statistics: byId('statistics'),
   gamesList: byId('games-list'), gameForm: byId('game-form'), gameName: byId('game-name'),
+  addGame: byId('add-game'), gameCategory: byId('game-category'), playMode: byId('play-mode'), scoreCategories: byId('score-categories'), addScoreCategory: byId('add-score-category'), categoryScoring: byId('category-scoring'), gameSearch: byId('game-search'), categoryFilter: byId('category-filter'),
   entryMode: byId('entry-mode'), ranking: byId('ranking'), rankingLabel: byId('ranking-label'), editingGameId: byId('editing-game-id'),
   saveGame: byId('save-game'), cancelEdit: byId('cancel-game-edit'), error: byId('app-error'),
   language: byId('language'),
@@ -26,7 +27,7 @@ const dom = {
 };
 const gameRepository = new LocalGameRepository(localStorage);
 const sessionRepository = new LocalSessionRepository(localStorage);
-const state = { activeSession: null, activeEditorState: { draft: {}, editingRoundId: null }, editingSessionId: null, games: [], sessions: [], historyGrouped: false };
+const state = { activeSession: null, activeEditorState: { draft: {}, editingRoundId: null }, editingSessionId: null, games: [], sessions: [], historyGrouped: false, gameFilters: { query: '', category: '' }, draftScoreCategories: [] };
 const browserLanguages = navigator.languages?.length ? navigator.languages : [navigator.language];
 let i18n = createTranslator(resolveLocale(localStorage, browserLanguages));
 
@@ -67,6 +68,7 @@ function renderDynamic() {
     renderDynamic();
   });
   renderStatistics(dom.statistics, state.sessions, state.games, i18n);
+  populateCategoryFilter();
   renderGameManager(dom.gamesList, state.games, {
     duplicate: async (id) => run(async () => {
       const copyName = (name, number) => i18n.t(number === 1 ? 'games.copy' : 'games.copyNumber', { name, number });
@@ -76,7 +78,7 @@ function renderDynamic() {
     delete: async (game) => {
       if (confirm(i18n.t('games.deleteConfirm', { game: getGameName(game, i18n.locale) }))) await run(async () => { await gameRepository.delete(game.id); await refresh(); });
     },
-  }, i18n);
+  }, i18n, state.gameFilters);
   if (dom.editingGameId.value) dom.saveGame.textContent = i18n.t('games.saveChanges');
   if (state.activeSession) {
     const game = findGame(state.games, state.activeSession.gameId);
@@ -103,8 +105,8 @@ function startSession() {
   if (!game) return alert(localized('errors.gameInvalid'));
   const engine = getScoringEngine(game.scoring.engineId);
   state.activeSession = {
-    schemaVersion: 2, id: createId('session'), gameId: game.id, gameNameAtPlay: getGameName(game, i18n.locale),
-    participants: parsed.participants, scoring: { ...game.scoring }, entries: engine.initialEntries(), totals: {}, createdAt: new Date().toISOString(),
+    schemaVersion: 3, id: createId('session'), gameId: game.id, gameNameAtPlay: getGameName(game, i18n.locale), playMode: game.playMode,
+    scoreCategories: [...(game.scoreCategories ?? [])], categoryScoring: game.categoryScoring, participants: parsed.participants, scoring: { ...game.scoring }, entries: engine.initialEntries(), totals: {}, categoryTotals: {}, createdAt: new Date().toISOString(),
   };
   state.activeEditorState = { draft: {}, editingRoundId: null }; state.editingSessionId = null;
   dom.sessionPlayerEditor.classList.add('hidden'); dom.cancelSession.classList.remove('hidden'); dom.cancelSessionEdit.classList.add('hidden');
@@ -165,13 +167,28 @@ async function importSessions(file) {
 
 function beginEdit(game) {
   dom.editingGameId.value = game.id; dom.gameName.value = game.name;
+  dom.gameCategory.value = game.category ?? ''; dom.playMode.value = game.playMode ?? 'competitive'; state.draftScoreCategories = [...(game.scoreCategories ?? [])]; dom.categoryScoring.value = game.categoryScoring ?? 'per-round'; renderScoreCategoryInputs();
   dom.entryMode.value = game.scoring.engineId; dom.ranking.value = game.scoring.ranking;
-  updateRankingControl();
-  dom.saveGame.textContent = i18n.t('games.saveChanges'); dom.cancelEdit.classList.remove('hidden'); dom.gameName.focus();
+  updateGameModeControls();
+  dom.gameForm.classList.remove('hidden'); dom.addGame.classList.add('hidden'); dom.saveGame.textContent = i18n.t('games.saveChanges'); dom.cancelEdit.classList.remove('hidden'); dom.gameName.focus();
 }
 
 function clearGameForm() {
-  dom.gameForm.reset(); dom.editingGameId.value = ''; updateRankingControl(); dom.saveGame.textContent = i18n.t('games.create'); dom.cancelEdit.classList.add('hidden');
+  dom.gameForm.reset(); dom.editingGameId.value = ''; state.draftScoreCategories = []; renderScoreCategoryInputs(); updateRankingControl(); dom.saveGame.textContent = i18n.t('games.create'); dom.cancelEdit.classList.add('hidden'); dom.gameForm.classList.add('hidden'); dom.addGame.classList.remove('hidden');
+}
+
+function openCreateGame() { clearGameForm(); dom.gameForm.classList.remove('hidden'); dom.addGame.classList.add('hidden'); dom.gameName.focus(); }
+
+function renderScoreCategoryInputs() {
+  dom.scoreCategories.replaceChildren();
+  state.draftScoreCategories.forEach((category, index) => { const row = document.createElement('div'); row.className = 'score-category-row'; const input = document.createElement('input'); input.value = category; input.maxLength = 40; input.setAttribute('aria-label', `${i18n.t('games.scoreCategory')} ${index + 1}`); input.addEventListener('input', () => { state.draftScoreCategories[index] = input.value; }); const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'secondary'; remove.textContent = '−'; remove.title = i18n.t('games.removeScoreCategory'); remove.setAttribute('aria-label', remove.title); remove.addEventListener('click', () => { state.draftScoreCategories.splice(index, 1); renderScoreCategoryInputs(); }); row.append(input, remove); dom.scoreCategories.append(row); });
+  dom.categoryScoring.disabled = !state.draftScoreCategories.length;
+}
+
+function populateCategoryFilter() {
+  const selected = state.gameFilters.category; const categories = [...new Set(state.games.map((game) => game.category?.toLocaleLowerCase()).filter(Boolean))].sort(); dom.categoryFilter.replaceChildren();
+  [['', i18n.t('games.allCategories')], ['__uncategorized__', i18n.t('games.uncategorized')], ...categories.map((value) => [value, value])].forEach(([value, label]) => { const option = document.createElement('option'); option.value = value; option.textContent = label; dom.categoryFilter.append(option); });
+  dom.categoryFilter.value = categories.includes(selected) || ['', '__uncategorized__'].includes(selected) ? selected : '';
 }
 
 function updateRankingControl() {
@@ -183,16 +200,33 @@ function updateRankingControl() {
   else if (!['highest', 'lowest'].includes(dom.ranking.value)) dom.ranking.value = 'highest';
 }
 
+function updateGameModeControls() {
+  const cooperative = dom.playMode.value === 'cooperative';
+  if (cooperative) dom.entryMode.value = 'winner-only';
+  dom.entryMode.disabled = cooperative;
+  document.getElementById('score-categories-fieldset').classList.toggle('hidden', dom.entryMode.value === 'winner-only');
+  if (dom.entryMode.value === 'round-sum') dom.categoryScoring.value = 'per-round';
+  if (dom.entryMode.value === 'final-total') dom.categoryScoring.value = 'final-total';
+  dom.categoryScoring.classList.toggle('hidden', cooperative || !state.draftScoreCategories.length);
+  dom.categoryScoring.disabled = cooperative || !state.draftScoreCategories.length;
+  updateRankingControl();
+}
+
 dom.gameForm.addEventListener('submit', (event) => {
   event.preventDefault();
   run(async () => {
-    const data = { name: dom.gameName.value, scoring: { engineId: dom.entryMode.value, ranking: dom.entryMode.value === 'winner-only' ? 'selected' : dom.ranking.value } };
+    const data = { name: dom.gameName.value, category: dom.gameCategory.value, playMode: dom.playMode.value, scoreCategories: state.draftScoreCategories, categoryScoring: dom.categoryScoring.value, scoring: { engineId: dom.entryMode.value, ranking: dom.entryMode.value === 'winner-only' ? 'selected' : dom.ranking.value } };
     if (dom.editingGameId.value) await gameRepository.update(dom.editingGameId.value, data); else await gameRepository.create(data);
     clearGameForm(); await refresh();
   });
 });
 dom.cancelEdit.addEventListener('click', clearGameForm);
-dom.entryMode.addEventListener('change', updateRankingControl);
+dom.addGame.addEventListener('click', openCreateGame);
+dom.addScoreCategory.addEventListener('click', () => { state.draftScoreCategories.push(''); renderScoreCategoryInputs(); });
+dom.gameSearch.addEventListener('input', () => { state.gameFilters.query = dom.gameSearch.value; renderDynamic(); });
+dom.categoryFilter.addEventListener('change', () => { state.gameFilters.category = dom.categoryFilter.value; renderDynamic(); });
+dom.entryMode.addEventListener('change', updateGameModeControls);
+dom.playMode.addEventListener('change', updateGameModeControls);
 wireTabNavigation(dom.tabButtons, dom.views, (nextView) => {
   if (nextView === 'new-session' && !state.activeSession) dom.newSessionCard.classList.remove('hidden');
   showView(nextView, dom.views, dom.tabButtons);
