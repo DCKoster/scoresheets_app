@@ -1,7 +1,7 @@
 import { findGame, getGameName } from './data/games.js';
 import { applyStaticTranslations, createTranslator, resolveLocale, saveLocale } from './i18n.js';
 import { getScoringEngine } from './scoring/engines.js';
-import { LocalGameRepository, LocalSessionRepository, createId, migrateStorage } from './state/repositories.js';
+import { LocalGameRepository, LocalSessionRepository, createId, exportBackup, importBackup, migrateStorage } from './state/repositories.js';
 import { parseParticipants } from './utils/players.js';
 import { showView, wireTabNavigation } from './ui/navigation.js';
 import { renderHomeSummary } from './ui/home.js';
@@ -13,7 +13,7 @@ import { renderGameManager } from './ui/game-manager.js';
 const byId = (id) => document.getElementById(id);
 const dom = {
   gameSelect: byId('game'), playersInput: byId('players'), startButton: byId('start-session'),
-  saveSessionButton: byId('save-session'), sessionPanel: byId('session-panel'), sessionTitle: byId('session-title'),
+  saveSessionButton: byId('save-session'), cancelSession: byId('cancel-session'), cancelSessionEdit: byId('cancel-session-edit'), sessionPlayerEditor: byId('session-player-editor'), sessionPlayers: byId('session-players'), sessionPanel: byId('session-panel'), sessionTitle: byId('session-title'),
   newSessionCard: byId('new-session-card'),
   entryPanel: byId('entry-panel'), savedList: byId('saved-list'), homeSummary: byId('home-summary'),
   statistics: byId('statistics'),
@@ -26,7 +26,7 @@ const dom = {
 };
 const gameRepository = new LocalGameRepository(localStorage);
 const sessionRepository = new LocalSessionRepository(localStorage);
-const state = { activeSession: null, activeDraft: {}, games: [], sessions: [], historyGrouped: false };
+const state = { activeSession: null, activeEditorState: { draft: {}, editingRoundId: null }, editingSessionId: null, games: [], sessions: [], historyGrouped: false };
 const browserLanguages = navigator.languages?.length ? navigator.languages : [navigator.language];
 let i18n = createTranslator(resolveLocale(localStorage, browserLanguages));
 
@@ -57,7 +57,12 @@ function populateGameSelect() {
 function renderDynamic() {
   populateGameSelect();
   renderHomeSummary(dom.homeSummary, state.sessions, state.games, i18n);
-  renderSavedSessions(dom.savedList, state.sessions, state.games, async (id) => { await sessionRepository.delete(id); await refresh(); }, i18n, state.historyGrouped, (grouped) => {
+  renderSavedSessions(dom.savedList, state.sessions, state.games, {
+    onDelete: async (id) => { await sessionRepository.delete(id); await refresh(); },
+    onEdit: editSavedSession,
+    onExport: () => run(exportSessions),
+    onImport: (file) => run(() => importSessions(file)),
+  }, i18n, state.historyGrouped, (grouped) => {
     state.historyGrouped = grouped;
     renderDynamic();
   });
@@ -78,7 +83,8 @@ function renderDynamic() {
     const gameName = game ? getGameName(game, i18n.locale) : state.activeSession.gameNameAtPlay;
     dom.sessionTitle.textContent = i18n.t('session.title', { game: gameName });
     const engine = getScoringEngine(state.activeSession.scoring.engineId);
-    renderEngineEditor(dom.entryPanel, state.activeSession, engine, (key) => alert(localized(key)), i18n, state.activeDraft, (draft) => { state.activeDraft = draft; });
+    renderEngineEditor(dom.entryPanel, state.activeSession, engine, (key) => alert(localized(key)), i18n, state.activeEditorState, (editorState) => { state.activeEditorState = editorState; });
+    dom.saveSessionButton.textContent = i18n.t(state.editingSessionId ? 'session.saveChanges' : 'session.save');
   }
 }
 
@@ -100,20 +106,61 @@ function startSession() {
     schemaVersion: 2, id: createId('session'), gameId: game.id, gameNameAtPlay: getGameName(game, i18n.locale),
     participants: parsed.participants, scoring: { ...game.scoring }, entries: engine.initialEntries(), totals: {}, createdAt: new Date().toISOString(),
   };
-  state.activeDraft = {};
+  state.activeEditorState = { draft: {}, editingRoundId: null }; state.editingSessionId = null;
+  dom.sessionPlayerEditor.classList.add('hidden'); dom.cancelSession.classList.remove('hidden'); dom.cancelSessionEdit.classList.add('hidden');
+  dom.saveSessionButton.textContent = i18n.t('session.save');
   dom.newSessionCard.classList.add('hidden'); dom.sessionPanel.classList.remove('hidden'); dom.sessionTitle.textContent = i18n.t('session.title', { game: getGameName(game, i18n.locale) });
-  renderEngineEditor(dom.entryPanel, state.activeSession, engine, (key) => alert(localized(key)), i18n, state.activeDraft, (draft) => { state.activeDraft = draft; });
+  renderEngineEditor(dom.entryPanel, state.activeSession, engine, (key) => alert(localized(key)), i18n, state.activeEditorState, (editorState) => { state.activeEditorState = editorState; });
   showView('new-session', dom.views, dom.tabButtons);
 }
 
 async function saveActiveSession() {
   if (!state.activeSession) return;
+  if (state.editingSessionId) {
+    const parsed = parseParticipants(dom.sessionPlayers.value);
+    if (!parsed.valid) return alert(localized(parsed.error));
+    if (parsed.participants.length !== state.activeSession.participants.length) return alert(localized('errors.playerCountUnchanged'));
+    state.activeSession.participants = state.activeSession.participants.map((participant, index) => ({ ...participant, displayName: parsed.participants[index].displayName }));
+  }
   const engine = getScoringEngine(state.activeSession.scoring.engineId);
   const result = finalizeEditor(state.activeSession, engine);
   if (!result.valid) return alert(localized(result.error));
   await sessionRepository.save(state.activeSession);
-  state.activeSession = null; state.activeDraft = {}; dom.sessionPanel.classList.add('hidden'); dom.newSessionCard.classList.remove('hidden'); await refresh();
+  closeActiveSession(); await refresh();
   showView('history', dom.views, dom.tabButtons);
+}
+
+function closeActiveSession() {
+  state.activeSession = null; state.activeEditorState = { draft: {}, editingRoundId: null }; state.editingSessionId = null;
+  dom.sessionPanel.classList.add('hidden'); dom.newSessionCard.classList.remove('hidden'); dom.sessionPlayerEditor.classList.add('hidden'); dom.cancelSession.classList.add('hidden'); dom.cancelSessionEdit.classList.add('hidden'); dom.saveSessionButton.textContent = i18n.t('session.save');
+}
+
+function editSavedSession(session) {
+  state.activeSession = structuredClone(session);
+  state.editingSessionId = session.id;
+  state.activeEditorState = { draft: {}, editingRoundId: null };
+  dom.sessionPlayers.value = session.participants.map((participant) => participant.displayName).join(', ');
+  dom.sessionPlayerEditor.classList.remove('hidden'); dom.cancelSession.classList.add('hidden'); dom.cancelSessionEdit.classList.remove('hidden'); dom.newSessionCard.classList.add('hidden'); dom.sessionPanel.classList.remove('hidden');
+  const engine = getScoringEngine(state.activeSession.scoring.engineId);
+  dom.saveSessionButton.textContent = i18n.t('session.saveChanges');
+  renderEngineEditor(dom.entryPanel, state.activeSession, engine, (key) => alert(localized(key)), i18n, state.activeEditorState, (editorState) => { state.activeEditorState = editorState; });
+  showView('new-session', dom.views, dom.tabButtons);
+  renderDynamic();
+}
+
+async function exportSessions() {
+  const backup = await exportBackup(localStorage);
+  const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+  const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = 'scoresheets-backup.json'; link.click();
+  setTimeout(() => URL.revokeObjectURL(link.href), 0);
+}
+
+async function importSessions(file) {
+  let backup;
+  try { backup = JSON.parse(await file.text()); } catch { throw new Error('errors.backupInvalid'); }
+  const result = await importBackup(localStorage, backup);
+  await refresh();
+  reportError(i18n.t('backup.importResult', { importedSessions: result.imported.sessions, importedGames: result.imported.games, skippedSessions: result.skipped.sessions, skippedGames: result.skipped.games }));
 }
 
 function beginEdit(game) {
@@ -152,6 +199,11 @@ wireTabNavigation(dom.tabButtons, dom.views, (nextView) => {
 });
 dom.startButton.addEventListener('click', startSession);
 dom.saveSessionButton.addEventListener('click', () => run(saveActiveSession));
+dom.cancelSession.addEventListener('click', () => {
+  if (!confirm(i18n.t('session.cancelConfirm'))) return;
+  closeActiveSession(); showView('new-session', dom.views, dom.tabButtons);
+});
+dom.cancelSessionEdit.addEventListener('click', () => { closeActiveSession(); showView('history', dom.views, dom.tabButtons); });
 dom.language.addEventListener('click', () => {
   i18n = createTranslator(saveLocale(localStorage, i18n.locale === 'en' ? 'nl' : 'en'));
   applyStaticTranslations(document, i18n);
@@ -167,4 +219,5 @@ await run(async () => {
   if (migration.error) reportError(localized(migration.error, migration.parameters));
   await refresh();
 });
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('./service-worker.js').catch(() => { /* The app works without offline support. */ });
 showView('home', dom.views, dom.tabButtons);

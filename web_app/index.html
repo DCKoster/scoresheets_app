@@ -4,6 +4,10 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Scoresheets Web</title>
+    <meta name="theme-color" content="#1f6feb" />
+    <meta name="description" content="Simple offline score tracking for board and card games." />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" href="./icons/icon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
@@ -46,8 +50,9 @@
 
         <section class="card hidden" id="session-panel">
           <h2 id="session-title"></h2>
+          <div id="session-player-editor" class="hidden"><label for="session-players" data-i18n="session.players">Players (comma separated)</label><input id="session-players" type="text" /></div>
           <div id="entry-panel"></div>
-          <button id="save-session" class="accent" data-i18n="session.save" type="button">Save session</button>
+          <div class="button-row"><button id="save-session" class="accent" data-i18n="session.save" type="button">Save session</button><button id="cancel-session" class="secondary" data-i18n="session.cancel" type="button">Cancel session</button><button id="cancel-session-edit" class="secondary hidden" data-i18n="session.cancelEdit" type="button">Cancel</button></div>
         </section>
       </section>
 

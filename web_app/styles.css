@@ -122,6 +122,7 @@ button.delete {
 button.secondary { background: var(--muted); }
 .button-row { display: flex; gap: 8px; }
 .button-row button { flex: 1; }
+#cancel-session { flex: 0 0 auto; width: auto; }
 .error { background: #fee2e2; border: 1px solid #ef4444; border-radius: 8px; color: #991b1b; padding: 12px; }
 details { margin: 8px 0; }
 
@@ -147,10 +148,16 @@ details { margin: 8px 0; }
 }
 
 .history-group-toggle { width: auto; }
+.history-controls { display: flex; flex-wrap: wrap; gap: 8px; }
+.history-controls > * { margin-top: 0; width: auto; }
+.history-import { align-items: center; background: var(--muted); border-radius: 8px; color: #fff; cursor: pointer; display: flex; font-size: 1rem; font-weight: 400; padding: 10px 12px; }
 .history-game-group { border-top: 1px solid var(--border); margin-top: 10px; padding-top: 10px; }
 .history-game-group summary { cursor: pointer; font-weight: 700; }
 .history-session-heading { align-items: center; display: flex; gap: 8px; justify-content: space-between; }
-.history-delete { flex: 0 0 auto; font-size: 1rem; height: 32px; margin: 0; padding: 4px; width: 32px; }
+.history-actions { display: flex; gap: 4px; }
+.history-delete, .history-edit { flex: 0 0 auto; font-size: 1rem; height: 32px; margin: 0; padding: 4px; width: 32px; }
+.round-row { align-items: center; display: flex; gap: 8px; justify-content: space-between; margin: 6px 0; }
+.round-edit { flex: 0 0 auto; margin: 0; padding: 6px 10px; width: auto; }
 
 .statistics-overview { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 12px 0 16px; }
 .statistics-tabs { display: flex; gap: 8px; margin: 12px 0; }

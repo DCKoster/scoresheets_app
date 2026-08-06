@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { CUSTOM_GAMES_KEY, LEGACY_KEY, LocalGameRepository, LocalSessionRepository, SESSIONS_KEY, migrateStorage } from '../web_app/src/state/repositories.js';
+import { CUSTOM_GAMES_KEY, LEGACY_KEY, LocalGameRepository, LocalSessionRepository, SESSIONS_KEY, exportBackup, importBackup, migrateStorage } from '../web_app/src/state/repositories.js';
 
 class MemoryStorage {
   constructor(values = {}) { this.values = new Map(Object.entries(values)); }
@@ -48,6 +48,29 @@ test('sessions serialize and retain snapshots independent of games', async () =>
   const session = { schemaVersion: 2, id: 's', gameId: 'deleted', gameNameAtPlay: 'Old name', participants: [], scoring: { engineId: 'final-total', ranking: 'lowest' }, entries: { values: {} }, totals: { p: 8 }, createdAt: 'now' };
   await repository.save(session);
   assert.deepEqual(await new LocalSessionRepository(storage).list(), [session]);
+});
+
+test('backups export custom records and import only non-conflicting valid records', async () => {
+  const source = new MemoryStorage();
+  const gameRepository = new LocalGameRepository(source);
+  const game = await gameRepository.create({ name: 'Custom game', scoring: { engineId: 'final-total', ranking: 'highest' } });
+  const session = {
+    schemaVersion: 2, id: 'session-1', gameId: game.id, gameNameAtPlay: game.name, createdAt: '2026-01-01T00:00:00.000Z',
+    participants: [{ id: 'a', displayName: 'A' }, { id: 'b', displayName: 'B' }],
+    scoring: { engineId: 'final-total', ranking: 'highest' }, entries: { values: { a: 3, b: 1 } }, totals: { a: 3, b: 1 },
+  };
+  await new LocalSessionRepository(source).save(session);
+  const backup = await exportBackup(source);
+  assert.equal(backup.sessions.length, 1);
+  assert.deepEqual(backup.customGames.map((item) => item.id), [game.id]);
+  assert.equal(backup.customGames.some((item) => item.id === 'take-5'), false);
+
+  const target = new MemoryStorage();
+  assert.deepEqual(await importBackup(target, backup), { imported: { sessions: 1, games: 1 }, skipped: { sessions: 0, games: 0 } });
+  assert.deepEqual(await importBackup(target, backup), { imported: { sessions: 0, games: 0 }, skipped: { sessions: 1, games: 1 } });
+  const prior = target.getItem(SESSIONS_KEY);
+  await assert.rejects(() => importBackup(target, { schemaVersion: 1, sessions: [{}], customGames: [] }), /errors\.backupInvalid/);
+  assert.equal(target.getItem(SESSIONS_KEY), prior);
 });
 
 test('migration converts round and final legacy shapes and is idempotent', async () => {
