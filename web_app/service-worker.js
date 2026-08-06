@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'scoresheets-shell-v1';
+const CACHE_VERSION = 'scoresheets-shell-v2';
 const APP_SHELL = [
   './', './index.html', './styles.css', './manifest.webmanifest', './icons/icon.svg',
   './src/main.js', './src/i18n.js', './src/data/games.js', './src/utils/players.js',
