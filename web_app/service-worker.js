@@ -1,42 +1,101 @@
-const CACHE_VERSION = 'scoresheets-shell-v3';
+const CACHE_VERSION = 'scoresheets-shell-v4';
+
 const APP_SHELL = [
-  './index.html', './styles.css', './manifest.webmanifest', './icons/icon.svg',
-  './src/main.js', './src/i18n.js', './src/data/games.js', './src/utils/players.js',
-  './src/state/repositories.js', './src/scoring/engines.js', './src/ui/navigation.js',
-  './src/ui/home.js', './src/ui/history.js', './src/ui/statistics.js', './src/ui/game-manager.js', './src/ui/session-form.js',
+  './index.html',
+  './styles.css',
+  './manifest.webmanifest',
+  './icons/icon.svg',
+  './src/main.js',
+  './src/i18n.js',
+  './src/data/games.js',
+  './src/utils/players.js',
+  './src/state/repositories.js',
+  './src/scoring/engines.js',
+  './src/ui/navigation.js',
+  './src/ui/home.js',
+  './src/ui/history.js',
+  './src/ui/statistics.js',
+  './src/ui/game-manager.js',
+  './src/ui/session-form.js',
 ];
 
 self.addEventListener('install', (event) => {
   console.log('Service worker installing...');
-  event.waitUntil(caches.open(CACHE_VERSION).then((cache) => cache.addAll(APP_SHELL)).then(() => self.skipWaiting()));
+
+  event.waitUntil(
+    caches
+      .open(CACHE_VERSION)
+      .then((cache) => cache.addAll(APP_SHELL))
+      .then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener('activate', (event) => {
   console.log('Service worker activating...');
-  event.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((key) => key !== CACHE_VERSION).map((key) => caches.delete(key)))).then(() => self.clients.claim()));
+
+  event.waitUntil(
+    caches
+      .keys()
+      .then((keys) =>
+        Promise.all(
+          keys
+            .filter((key) => key !== CACHE_VERSION)
+            .map((key) => caches.delete(key))
+        )
+      )
+      .then(() => self.clients.claim())
+  );
 });
-self.addEventListener('fetch', async (event) => {
-  console.log('Service worker fetching', event.request.url);
-  if (event.request.method !== 'GET') return;
+
+self.addEventListener('fetch', (event) => {
   const request = event.request;
-  if (request.mode === 'navigate') {
-    console.log('Service worker handling navigation request for', request.url);
-    const fromCache = await caches.match('./index.html');
-    event.respondWith(fromCache ?? fetch(request));
+
+  if (request.method !== 'GET') {
     return;
   }
-  event.respondWith(caches.match(request).then((cached) => {
-    console.log('Service worker cache match for', request.url, cached ? 'HIT' : 'MISS');
-    const update = fetch(request).then((response) => {
-      console.log('Service worker fetched', request.url, 'with status', response.status);
-      const sameOrigin = new URL(request.url).origin === self.location.origin;
-      if (response.ok && response.type === 'basic' && !response.redirected && sameOrigin) {
-        caches.open(CACHE_VERSION)
-          .then((cache) => cache.put(request, response.clone()))
-          .catch(() => { console.warn('Failed to update cache for', request.url); });
+
+  const url = new URL(request.url);
+
+  // Don't interfere with Google Fonts, browser extensions, etc.
+  if (url.origin !== self.location.origin) {
+    return;
+  }
+
+  // Navigation: serve the cached application shell.
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      caches.match('./index.html').then((cached) => {
+        return cached || fetch(request);
+      })
+    );
+
+    return;
+  }
+
+  // Static resources: cache first, network fallback.
+  event.respondWith(
+    caches.match(request).then((cached) => {
+      if (cached) {
+        return cached;
       }
-      return response;
-    });
-    return cached || update;
-  }));
+
+      return fetch(request).then((response) => {
+        if (
+          response.ok &&
+          response.type === 'basic' &&
+          !response.redirected
+        ) {
+          const copy = response.clone();
+
+          event.waitUntil(
+            caches
+              .open(CACHE_VERSION)
+              .then((cache) => cache.put(request, copy))
+          );
+        }
+
+        return response;
+      });
+    })
+  );
 });
