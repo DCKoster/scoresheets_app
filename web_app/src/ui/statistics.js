@@ -155,11 +155,20 @@ function marioKartRecords(sessions) {
   const records = [];
   sessions.filter((session) => session?.scoring?.engineId === 'mario-kart-8').forEach((session) => {
     const names = new Map((session.participants ?? []).map((participant) => [participant.id, participant.displayName]));
+    const totals = session.totals ?? {};
+    const totalScores = (session.participants ?? [])
+      .map((participant) => Number(totals[participant.id]))
+      .filter((score) => Number.isFinite(score));
+    const winningTotal = totalScores.length ? Math.max(...totalScores) : null;
+    const sessionWinners = new Set((session.participants ?? [])
+      .filter((participant) => winningTotal !== null && Number(totals[participant.id]) === winningTotal)
+      .map((participant) => participant.id));
     (session.entries?.races ?? []).forEach((race) => {
       race.participantIds?.forEach((id) => {
         if (!names.has(id)) return;
         records.push({
           player: names.get(id), playerKey: normalizePlayerName(names.get(id)),
+          sessionId: session.id, sessionWon: sessionWinners.has(id),
           cc: race.cc, itemSet: race.itemSet, itemSetName: itemPresetName(race.itemSet), itemIds: race.itemIds ?? [],
           placement: Number(race.placements?.[id]), points: Number(race.points?.[id] ?? 0),
         });
@@ -173,10 +182,15 @@ function finishMarioStats(records) {
   const players = new Map();
   records.forEach((record) => {
     let summary = players.get(record.playerKey);
-    if (!summary) { summary = { playerKey: record.playerKey, displayName: record.player, races: 0, wins: 0, totalPoints: 0, totalPlacement: 0 }; players.set(record.playerKey, summary); }
+    if (!summary) { summary = { playerKey: record.playerKey, displayName: record.player, races: 0, wins: 0, sessions: 0, sessionWins: 0, sessionIds: new Set(), totalPoints: 0, totalPlacement: 0 }; players.set(record.playerKey, summary); }
     summary.races += 1; summary.wins += record.placement === 1 ? 1 : 0; summary.totalPoints += record.points; summary.totalPlacement += record.placement;
+    if (!summary.sessionIds.has(record.sessionId)) {
+      summary.sessionIds.add(record.sessionId);
+      summary.sessions += 1;
+      if (record.sessionWon) summary.sessionWins += 1;
+    }
   });
-  return [...players.values()].map((summary) => ({ ...summary, winRate: summary.wins / summary.races, averagePoints: summary.totalPoints / summary.races, averagePlacement: summary.totalPlacement / summary.races })).sort((a, b) => b.totalPoints - a.totalPoints || b.winRate - a.winRate || a.displayName.localeCompare(b.displayName));
+  return [...players.values()].map((summary) => ({ ...summary, sessionIds: undefined, winRate: summary.wins / summary.races, sessionWinRate: summary.sessionWins / summary.sessions, averagePoints: summary.totalPoints / summary.races, averagePlacement: summary.totalPlacement / summary.races })).sort((a, b) => b.totalPoints - a.totalPoints || b.sessionWinRate - a.sessionWinRate || b.winRate - a.winRate || a.displayName.localeCompare(b.displayName));
 }
 
 export function calculateMarioKartStatistics(sessions = [], filters = {}) {
@@ -209,10 +223,10 @@ function renderMarioKartDashboard(container, sessions, i18n) {
     if (!statistics.records.length) return content.append(element('p', i18n.t('statistics.noMatchingRaces')));
     content.append(element('p', i18n.t('statistics.raceCount', { count: statistics.records.length })));
     const table = element('table', '', 'statistics-leaderboard'); const header = document.createElement('thead'); const headerRow = document.createElement('tr');
-    [i18n.t('statistics.player'), i18n.t('statistics.races'), i18n.t('statistics.wins'), i18n.t('statistics.winRate'), i18n.t('statistics.averagePoints'), i18n.t('statistics.averagePlacement'), i18n.t('statistics.totalPoints')].forEach((label) => headerRow.append(element('th', label))); header.append(headerRow); table.append(header);
+    [i18n.t('statistics.player'), i18n.t('statistics.races'), i18n.t('statistics.wins'), i18n.t('statistics.raceWinRate'), i18n.t('statistics.averagePoints'), i18n.t('statistics.averagePlacement'), i18n.t('statistics.totalPoints')].forEach((label) => headerRow.append(element('th', label))); header.append(headerRow); table.append(header);
     const body = document.createElement('tbody'); statistics.players.forEach((player) => { const row = document.createElement('tr'); [player.displayName, player.races, player.wins, formatPercent(player.winRate, i18n.locale), formatScore(player.averagePoints, i18n.locale), formatScore(player.averagePlacement, i18n.locale), player.totalPoints].forEach((value) => row.append(element('td', String(value)))); body.append(row); }); table.append(body); content.append(table);
-    const chart = element('div', '', 'mario-win-chart'); content.append(element('h3', i18n.t('statistics.winRate')), chart);
-    const maxRate = Math.max(...statistics.players.map((player) => player.winRate), 0.01); statistics.players.forEach((player) => { const row = element('div', '', 'mario-chart-row'); row.append(element('span', player.displayName)); const bar = element('div', '', 'mario-chart-bar'); bar.style.width = `${(player.winRate / maxRate) * 100}%`; bar.title = formatPercent(player.winRate, i18n.locale); row.append(bar); chart.append(row); });
+    const chart = element('div', '', 'mario-win-chart'); content.append(element('h3', i18n.t('statistics.sessionWinRate')), chart);
+    const maxRate = Math.max(...statistics.players.map((player) => player.sessionWinRate), 0.01); statistics.players.forEach((player) => { const row = element('div', '', 'mario-chart-row'); row.append(element('span', player.displayName)); const bar = element('div', '', 'mario-chart-bar'); bar.style.width = `${(player.sessionWinRate / maxRate) * 100}%`; bar.title = i18n.t('statistics.sessionWinRateTooltip', { sessionWins: player.sessionWins, sessions: player.sessions, sessionWinRate: formatPercent(player.sessionWinRate, i18n.locale), raceWinRate: formatPercent(player.winRate, i18n.locale) }); bar.setAttribute('aria-label', bar.title); row.append(bar); chart.append(row); });
     const conditionTable = element('table', '', 'statistics-leaderboard'); conditionTable.append(element('caption', i18n.t('statistics.byCondition'))); const conditionBody = document.createElement('tbody'); statistics.conditions.sort((a, b) => b.races - a.races).forEach((condition) => { const row = document.createElement('tr'); [i18n.t(`marioKart.cc.${condition.cc}`), condition.itemSetName, condition.races, formatPercent(condition.winRate, i18n.locale), formatScore(condition.averagePoints, i18n.locale)].forEach((value) => row.append(element('td', String(value)))); conditionBody.append(row); }); conditionTable.append(conditionBody); content.append(conditionTable);
   };
   render();
@@ -368,5 +382,6 @@ export function renderStatistics(container, sessions, games, i18n) {
   showGame(gameSelect.value);
 
   container.append(tabList, overviewPanel, playersPanel, gamesPanel);
+  if (marioPanel) container.append(marioPanel);
   selectTab('overview');
 }
