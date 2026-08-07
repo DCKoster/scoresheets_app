@@ -13,7 +13,7 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((key) => key !== CACHE_VERSION).map((key) => caches.delete(key)))).then(() => self.clients.claim()));
 });
-
+self.addEventListener('error', (event) => {console.log(event)});
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   const request = event.request;
