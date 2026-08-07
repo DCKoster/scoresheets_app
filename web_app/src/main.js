@@ -184,7 +184,6 @@ function renderScoreCategoryInputs() {
   dom.categoryScoring.disabled = !state.draftScoreCategories.length;
 }
 
-function populateCategoryFilter() {
 function updateRankingControl() {
   const isWinnerOnly = dom.entryMode.value === 'winner-only';
   dom.ranking.disabled = isWinnerOnly;
