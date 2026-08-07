@@ -60,6 +60,22 @@ test('sessions serialize and retain snapshots independent of games', async () =>
   assert.deepEqual(await new LocalSessionRepository(storage).list(), [session]);
 });
 
+test('Mario Kart sessions pass backup validation and round-trip totals', async () => {
+  const storage = new MemoryStorage();
+  const backup = {
+    schemaVersion: 1,
+    sessions: [{
+      schemaVersion: 3, id: 'mk-session', gameId: 'mario-kart-8', gameNameAtPlay: 'Mario Kart 8', createdAt: '2026-01-01T00:00:00.000Z', targetRaces: 1,
+      participants: [{ id: 'a', displayName: 'A' }, { id: 'b', displayName: 'B' }],
+      scoring: { engineId: 'mario-kart-8', ranking: 'highest' }, entries: { races: [{ id: 'r1', cc: '200cc', itemSet: 'custom', itemIds: ['Mushroom'], participantIds: ['a', 'b'], placements: { a: 1, b: 2 }, points: { a: 15, b: 12 } }] }, totals: { a: 15, b: 12 },
+    }],
+    customGames: [],
+  };
+  const result = await importBackup(storage, backup);
+  assert.deepEqual(result.imported, { sessions: 1, games: 0 });
+  assert.deepEqual(JSON.parse(storage.getItem(SESSIONS_KEY))[0].totals, { a: 15, b: 12 });
+});
+
 test('backups export custom records and import only non-conflicting valid records', async () => {
   const source = new MemoryStorage();
   const gameRepository = new LocalGameRepository(source);

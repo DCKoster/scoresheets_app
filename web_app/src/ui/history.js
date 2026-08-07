@@ -13,17 +13,20 @@ export function groupSessionsByGame(sessions) {
   return [...groups.values()];
 }
 
-function renderSession(session, currentNames, onDelete, onEdit, i18n) {
+function renderSession(session, currentNames, onDelete, onEdit, onExportSession, i18n) {
   const item = node('div', '', 'list-item');
   const heading = node('div', '', 'history-session-heading');
   heading.append(node('strong', currentNames.get(session.gameId) ?? session.gameNameAtPlay));
   const edit = node('button', '✎', 'secondary history-edit');
   edit.type = 'button'; edit.setAttribute('aria-label', i18n.t('session.edit')); edit.title = i18n.t('session.edit');
   edit.addEventListener('click', () => onEdit(session));
+  const exportButton = node('button', '⇩', 'secondary history-export-session');
+  exportButton.type = 'button'; exportButton.setAttribute('aria-label', i18n.t('backup.exportSession')); exportButton.title = i18n.t('backup.exportSession');
+  exportButton.addEventListener('click', () => onExportSession(session.id));
   const button = node('button', '🗑', 'delete history-delete');
   button.type = 'button'; button.setAttribute('aria-label', i18n.t('games.delete')); button.title = i18n.t('games.delete');
   button.addEventListener('click', () => onDelete(session.id));
-  const actions = node('div', '', 'history-actions'); actions.append(edit, button); heading.append(actions);
+  const actions = node('div', '', 'history-actions'); actions.append(edit, exportButton, button); heading.append(actions);
   item.append(heading, node('small', i18n.formatDateTime(session.createdAt)));
   const names = new Map(session.participants.map((participant) => [participant.id, participant.displayName]));
   if (session.scoring.engineId === 'winner-only') {
@@ -41,10 +44,18 @@ function renderSession(session, currentNames, onDelete, onEdit, i18n) {
     });
     item.append(details);
   }
+  if (session.scoring.engineId === 'mario-kart-8') {
+    const details = node('details', ''); details.append(node('summary', i18n.t('session.roundDetails')));
+    (session.entries.races ?? []).forEach((race, index) => {
+      const scores = session.participants.filter((participant) => race.participantIds.includes(participant.id)).map((participant) => `${participant.displayName} ${race.points[participant.id]}`).join(' | ');
+      details.append(node('div', i18n.t('marioKart.raceSummary', { number: index + 1, track: race.track || i18n.t('marioKart.trackNotSet'), cc: race.cc, itemSet: race.itemSet, scores })));
+    });
+    item.append(details);
+  }
   return item;
 }
 
-export function renderSavedSessions(savedList, sessions, games, { onDelete, onEdit, onExport, onImport }, i18n, grouped = false, onGroupChange = () => {}) {
+export function renderSavedSessions(savedList, sessions, games, { onDelete, onEdit, onExport, onExportSession, onImport }, i18n, grouped = false, onGroupChange = () => {}) {
   savedList.replaceChildren();
   const toggle = node('button', i18n.t('session.groupByGame'), 'secondary history-group-toggle');
   toggle.type = 'button'; toggle.setAttribute('aria-pressed', String(grouped));
@@ -59,7 +70,7 @@ export function renderSavedSessions(savedList, sessions, games, { onDelete, onEd
 
   const currentNames = new Map(games.map((game) => [game.id, getGameName(game, i18n.locale)]));
   if (!grouped) {
-    sessions.forEach((session) => savedList.append(renderSession(session, currentNames, onDelete, onEdit, i18n)));
+    sessions.forEach((session) => savedList.append(renderSession(session, currentNames, onDelete, onEdit, onExportSession, i18n)));
     return;
   }
 
@@ -67,7 +78,7 @@ export function renderSavedSessions(savedList, sessions, games, { onDelete, onEd
     const details = node('details', '', 'history-game-group');
     const gameName = currentNames.get(group.gameId) ?? group.gameNameAtPlay;
     details.append(node('summary', i18n.t('session.gameGroup', { game: gameName, count: group.sessions.length })));
-    group.sessions.forEach((session) => details.append(renderSession(session, currentNames, onDelete, onEdit, i18n)));
+    group.sessions.forEach((session) => details.append(renderSession(session, currentNames, onDelete, onEdit, onExportSession, i18n)));
     savedList.append(details);
   });
 }

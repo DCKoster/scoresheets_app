@@ -1,7 +1,7 @@
 import { findGame, getGameName } from './data/games.js';
 import { applyStaticTranslations, createTranslator, resolveLocale, saveLocale } from './i18n.js';
 import { getScoringEngine } from './scoring/engines.js';
-import { LocalGameRepository, LocalSessionRepository, createId, exportBackup, importBackup, migrateStorage } from './state/repositories.js';
+import { LocalGameRepository, LocalSessionRepository, createId, exportBackup, exportSessionBackup, importBackup, migrateStorage } from './state/repositories.js';
 import { parseParticipants } from './utils/players.js';
 import { showView, wireTabNavigation } from './ui/navigation.js';
 import { renderHomeSummary } from './ui/home.js';
@@ -9,10 +9,11 @@ import { renderSavedSessions } from './ui/history.js';
 import { renderStatistics } from './ui/statistics.js';
 import { finalizeEditor, renderEngineEditor } from './ui/session-form.js';
 import { renderGameManager } from './ui/game-manager.js';
+import { renderMarioKartEditor } from './ui/mario-kart.js';
 
 const byId = (id) => document.getElementById(id);
 const dom = {
-  gameSelect: byId('game'), playersInput: byId('players'), startButton: byId('start-session'),
+  gameSelect: byId('game'), playersLabel: byId('players-label'), playersInput: byId('players'), playerSuggestions: byId('player-suggestions'), targetRaces: byId('target-races'), targetRacesLabel: byId('target-races-label'), startButton: byId('start-session'),
   saveSessionButton: byId('save-session'), cancelSession: byId('cancel-session'), cancelSessionEdit: byId('cancel-session-edit'), sessionPlayerEditor: byId('session-player-editor'), sessionPlayers: byId('session-players'), sessionPanel: byId('session-panel'), sessionTitle: byId('session-title'),
   newSessionCard: byId('new-session-card'),
   entryPanel: byId('entry-panel'), savedList: byId('saved-list'), homeSummary: byId('home-summary'),
@@ -27,7 +28,7 @@ const dom = {
 };
 const gameRepository = new LocalGameRepository(localStorage);
 const sessionRepository = new LocalSessionRepository(localStorage);
-const state = { activeSession: null, activeEditorState: { draft: {}, editingRoundId: null }, editingSessionId: null, games: [], sessions: [], historyGrouped: false, gameFilters: { query: '' }, draftScoreCategories: [], competitiveEntryMode: null };
+const state = { activeSession: null, activeEditorState: { draft: {}, editingRoundId: null }, editingSessionId: null, games: [], sessions: [], historyGrouped: false, gameFilters: { query: '' }, draftScoreCategories: [], competitiveEntryMode: null, autoSavingSession: false };
 const browserLanguages = navigator.languages?.length ? navigator.languages : [navigator.language];
 let i18n = createTranslator(resolveLocale(localStorage, browserLanguages));
 
@@ -53,15 +54,47 @@ function populateGameSelect() {
     dom.gameSelect.append(option);
   });
   if (state.games.some((game) => game.id === selected)) dom.gameSelect.value = selected;
+  updateTargetRacesVisibility();
+}
+
+function isMarioKart(game) { return game?.scoring?.engineId === 'mario-kart-8'; }
+
+function historicalMarioKartPlayers() {
+  return [...new Set(state.sessions
+    .filter((session) => session.scoring?.engineId === 'mario-kart-8')
+    .flatMap((session) => (session.participants ?? []).map((participant) => participant.displayName)))];
+}
+
+function updateTargetRacesVisibility() {
+  const marioKart = isMarioKart(findGame(state.games, dom.gameSelect.value));
+  dom.targetRaces.classList.toggle('hidden', !marioKart);
+  dom.targetRacesLabel.classList.toggle('hidden', !marioKart);
+  dom.playersLabel.classList.toggle('hidden', marioKart);
+  dom.playersInput.classList.toggle('hidden', marioKart);
+}
+
+function handleEditorState(engine, editorState, event = {}) {
+  state.activeEditorState = editorState;
+  const sessionComplete = engine.id === 'mario-kart-8'
+    && !state.editingSessionId
+    && state.activeSession
+    && state.activeSession.entries.races.length >= Number(state.activeSession.targetRaces);
+  if (sessionComplete && !state.autoSavingSession) {
+    state.autoSavingSession = true;
+    void run(async () => { try { await saveActiveSession(); } finally { state.autoSavingSession = false; } });
+  }
 }
 
 function renderDynamic() {
   populateGameSelect();
+  const playerNames = [...new Set(state.sessions.flatMap((session) => (session.participants ?? []).map((participant) => participant.displayName)))].sort((a, b) => a.localeCompare(b));
+  dom.playerSuggestions.replaceChildren(...playerNames.map((name) => { const option = document.createElement('option'); option.value = name; return option; }));
   renderHomeSummary(dom.homeSummary, state.sessions, state.games, i18n);
   renderSavedSessions(dom.savedList, state.sessions, state.games, {
     onDelete: async (id) => { await sessionRepository.delete(id); await refresh(); },
     onEdit: editSavedSession,
     onExport: () => run(exportSessions),
+    onExportSession: (sessionId) => run(() => exportSavedSession(sessionId)),
     onImport: (file) => run(() => importSessions(file)),
   }, i18n, state.historyGrouped, (grouped) => {
     state.historyGrouped = grouped;
@@ -84,7 +117,8 @@ function renderDynamic() {
     const gameName = game ? getGameName(game, i18n.locale) : state.activeSession.gameNameAtPlay;
     dom.sessionTitle.textContent = i18n.t('session.title', { game: gameName });
     const engine = getScoringEngine(state.activeSession.scoring.engineId);
-    renderEngineEditor(dom.entryPanel, state.activeSession, engine, (key) => alert(localized(key)), i18n, state.activeEditorState, (editorState) => { state.activeEditorState = editorState; });
+    const editor = engine.id === 'mario-kart-8' ? renderMarioKartEditor : renderEngineEditor;
+    editor(dom.entryPanel, state.activeSession, engine, (key) => alert(localized(key)), i18n, state.activeEditorState, (editorState, event) => handleEditorState(engine, editorState, event));
     dom.saveSessionButton.textContent = i18n.t(state.editingSessionId ? 'session.saveChanges' : 'session.save');
   }
 }
@@ -98,20 +132,24 @@ async function run(action) { try { reportError(''); await action(); } catch (err
 
 function startSession() {
   reportError('');
-  const parsed = parseParticipants(dom.playersInput.value);
+  const selectedGame = findGame(state.games, dom.gameSelect.value);
+  const parsed = isMarioKart(selectedGame) ? { valid: true, participants: [] } : parseParticipants(dom.playersInput.value);
   if (!parsed.valid) return alert(localized(parsed.error));
-  const game = findGame(state.games, dom.gameSelect.value);
+  const game = selectedGame;
   if (!game) return alert(localized('errors.gameInvalid'));
+  const targetRaces = isMarioKart(game) ? Number(dom.targetRaces.value) : undefined;
+  if (isMarioKart(game) && (!Number.isInteger(targetRaces) || targetRaces < 1 || targetRaces > 99)) return alert(localized('errors.marioKartTargetRaces'));
   const engine = getScoringEngine(game.scoring.engineId);
   state.activeSession = {
-    schemaVersion: 3, id: createId('session'), gameId: game.id, gameNameAtPlay: getGameName(game, i18n.locale), playMode: game.playMode,
+    schemaVersion: 3, id: createId('session'), gameId: game.id, gameNameAtPlay: getGameName(game, i18n.locale), playMode: game.playMode, ...(isMarioKart(game) ? { targetRaces } : {}),
     scoreCategories: [...(game.scoreCategories ?? [])], categoryScoring: game.categoryScoring, participants: parsed.participants, scoring: { ...game.scoring }, entries: engine.initialEntries(), totals: {}, categoryTotals: {}, createdAt: new Date().toISOString(),
   };
-  state.activeEditorState = { draft: {}, editingRoundId: null }; state.editingSessionId = null;
+  state.activeEditorState = { draft: {}, editingRoundId: null, marioAvailablePlayers: historicalMarioKartPlayers() }; state.editingSessionId = null;
   dom.sessionPlayerEditor.classList.add('hidden'); dom.cancelSession.classList.remove('hidden'); dom.cancelSessionEdit.classList.add('hidden');
   dom.saveSessionButton.textContent = i18n.t('session.save');
   dom.newSessionCard.classList.add('hidden'); dom.sessionPanel.classList.remove('hidden'); dom.sessionTitle.textContent = i18n.t('session.title', { game: getGameName(game, i18n.locale) });
-  renderEngineEditor(dom.entryPanel, state.activeSession, engine, (key) => alert(localized(key)), i18n, state.activeEditorState, (editorState) => { state.activeEditorState = editorState; });
+  const editor = engine.id === 'mario-kart-8' ? renderMarioKartEditor : renderEngineEditor;
+  editor(dom.entryPanel, state.activeSession, engine, (key) => alert(localized(key)), i18n, state.activeEditorState, (editorState, event) => handleEditorState(engine, editorState, event));
   showView('new-session', dom.views, dom.tabButtons);
 }
 
@@ -139,12 +177,13 @@ function closeActiveSession() {
 function editSavedSession(session) {
   state.activeSession = structuredClone(session);
   state.editingSessionId = session.id;
-  state.activeEditorState = { draft: {}, editingRoundId: null };
+  state.activeEditorState = { draft: {}, editingRoundId: null, marioAvailablePlayers: historicalMarioKartPlayers() };
   dom.sessionPlayers.value = session.participants.map((participant) => participant.displayName).join(', ');
   dom.sessionPlayerEditor.classList.remove('hidden'); dom.cancelSession.classList.add('hidden'); dom.cancelSessionEdit.classList.remove('hidden'); dom.newSessionCard.classList.add('hidden'); dom.sessionPanel.classList.remove('hidden');
   const engine = getScoringEngine(state.activeSession.scoring.engineId);
   dom.saveSessionButton.textContent = i18n.t('session.saveChanges');
-  renderEngineEditor(dom.entryPanel, state.activeSession, engine, (key) => alert(localized(key)), i18n, state.activeEditorState, (editorState) => { state.activeEditorState = editorState; });
+  const editor = engine.id === 'mario-kart-8' ? renderMarioKartEditor : renderEngineEditor;
+  editor(dom.entryPanel, state.activeSession, engine, (key) => alert(localized(key)), i18n, state.activeEditorState, (editorState, event) => handleEditorState(engine, editorState, event));
   showView('new-session', dom.views, dom.tabButtons);
   renderDynamic();
 }
@@ -153,6 +192,16 @@ async function exportSessions() {
   const backup = await exportBackup(localStorage);
   const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
   const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = 'scoresheets-backup.json'; link.click();
+  setTimeout(() => URL.revokeObjectURL(link.href), 0);
+}
+
+async function exportSavedSession(sessionId) {
+  const backup = await exportSessionBackup(localStorage, sessionId);
+  const session = backup.sessions[0];
+  const game = session ? findGame(state.games, session.gameId) : null;
+  const filename = `${getGameName(game, 'en').toLocaleLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'game'}-session-${sessionId}.json`;
+  const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+  const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = filename; link.click();
   setTimeout(() => URL.revokeObjectURL(link.href), 0);
 }
 
@@ -229,6 +278,7 @@ wireTabNavigation(dom.tabButtons, dom.views, (nextView) => {
   showView(nextView, dom.views, dom.tabButtons);
 });
 dom.startButton.addEventListener('click', startSession);
+dom.gameSelect.addEventListener('change', updateTargetRacesVisibility);
 dom.saveSessionButton.addEventListener('click', () => run(saveActiveSession));
 dom.cancelSession.addEventListener('click', () => {
   if (!confirm(i18n.t('session.cancelConfirm'))) return;

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { calculateStatistics, normalizePlayerName } from '../web_app/src/ui/statistics.js';
+import { calculateMarioKartStatistics, calculateStatistics, normalizePlayerName } from '../web_app/src/ui/statistics.js';
 import { groupSessionsByGame } from '../web_app/src/ui/history.js';
 
 const session = (id, ranking, scores, gameId = 'game') => ({
@@ -89,4 +89,18 @@ test('history groups sessions by game while preserving their first-seen order', 
   assert.deepEqual(groups.map(({ gameId, sessions }) => [gameId, sessions.map((session) => session.id)]), [
     ['a', ['one', 'three']], ['b', ['two']],
   ]);
+});
+
+test('Mario Kart statistics filter by CC and individual items with variable participation', () => {
+  const session = {
+    id: 'mk', gameId: 'mario-kart-8', gameNameAtPlay: 'Mario Kart 8', scoring: { engineId: 'mario-kart-8', ranking: 'highest' },
+    participants: [{ id: 'a', displayName: 'A' }, { id: 'b', displayName: 'B' }, { id: 'c', displayName: 'C' }],
+    entries: { races: [
+      { cc: '200cc', itemSet: 'custom', itemIds: ['Mushroom'], participantIds: ['a', 'b'], placements: { a: 1, b: 2 }, points: { a: 15, b: 12 } },
+      { cc: '150cc', itemSet: 'frantic', itemIds: ['Mushroom', 'Red Shell'], participantIds: ['a', 'c'], placements: { a: 3, c: 1 }, points: { a: 10, c: 15 } },
+    ] }, totals: { a: 25, b: 12, c: 15 }, targetRaces: 2,
+  };
+  const result = calculateMarioKartStatistics([session], { cc: '200cc', item: 'Mushroom' });
+  assert.deepEqual(result.players.map(({ displayName, races, wins, averagePoints }) => [displayName, races, wins, averagePoints]), [['A', 1, 1, 15], ['B', 1, 0, 12]]);
+  assert.equal(calculateMarioKartStatistics([session], { item: 'Red Shell' }).players[0].displayName, 'C');
 });

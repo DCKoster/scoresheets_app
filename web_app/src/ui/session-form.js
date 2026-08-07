@@ -120,6 +120,12 @@ export function finalizeEditor(session, engine) {
     if (!parsed.valid) return parsed;
     session.entries.values = parsed.entry;
   }
+  if (engine.id === 'mario-kart-8') {
+    const validation = engine.validateSession(session.entries, session.participants);
+    if (!validation.valid) return validation;
+    session.totals = engine.calculateTotals(session.entries, session.participants);
+    return { valid: true };
+  }
   const validation = engine.validateSession(session.entries, session.participants, session.scoreCategories ?? []);
   if (!validation.valid) return validation;
   session.totals = engine.calculateTotals(session.entries, session.participants, session.scoreCategories ?? []);
