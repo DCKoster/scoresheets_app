@@ -13,6 +13,8 @@ test('the PWA declares a manifest and versioned offline shell', async () => {
   assert.match(html, /manifest\.webmanifest/);
   assert.match(worker, /CACHE_VERSION = 'scoresheets-shell-v\d+'/);
   assert.match(worker, /'\.\/src\/main\.js'/);
+  assert.match(worker, /'\.\/src\/data\/mario-kart\.js'/);
+  assert.match(worker, /'\.\/src\/ui\/mario-kart\.js'/);
   assert.match(worker, /request\.mode === 'navigate'/);
   assert.match(worker, /caches\.delete/);
   assert.match(worker, /!response\.redirected/);

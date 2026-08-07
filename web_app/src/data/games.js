@@ -23,6 +23,14 @@ export const BUILTIN_GAMES = Object.freeze([
     scoring: Object.freeze({ engineId: 'winner-only', ranking: 'selected' }),
     playMode: 'competitive', scoreCategories: Object.freeze([]),
   }),
+  Object.freeze({
+    schemaVersion: 3,
+    id: 'mario-kart-8',
+    names: Object.freeze({ en: 'Mario Kart 8', nl: 'Mario Kart 8' }),
+    origin: 'builtin',
+    scoring: Object.freeze({ engineId: 'mario-kart-8', ranking: 'highest' }),
+    playMode: 'competitive', scoreCategories: Object.freeze([]),
+  }),
 ]);
 
 export function findGame(games, gameId) {

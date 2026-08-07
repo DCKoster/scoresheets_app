@@ -158,6 +158,35 @@ details { margin: 8px 0; }
 .score-category-row { display: flex; gap: 8px; margin-top: 8px; }
 .score-category-row input { margin: 0; }
 .score-category-row button { flex: 0 0 42px; margin: 0; }
+.mario-race-form { display: grid; gap: 14px; }
+.mario-race-controls { display: grid; gap: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.mario-race-controls label, .mario-placement-row, .mario-roster-row { align-items: center; display: flex; gap: 8px; }
+.mario-race-controls select, .mario-placement-row select { margin: 0; }
+.mario-item-grid { display: grid; gap: 8px; grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.mario-item-button { min-height: 56px; margin: 0; transition: background-color .15s ease, box-shadow .15s ease, color .15s ease, transform .15s ease; }
+.mario-item-button:not(.is-selected) { background: #1f2937; border: 1px solid #111827; color: #94a3b8; box-shadow: inset 0 3px 9px rgb(0 0 0 / 55%), 0 2px 4px rgb(0 0 0 / 35%); }
+.mario-item-button:not(.is-selected):hover { background: #273449; color: #cbd5e1; }
+.mario-item-button.is-selected { background: #facc15; border: 1px solid #eab308; color: #422006; filter: none; box-shadow: 0 0 0 3px #fde68a, 0 4px 10px rgb(234 179 8 / 50%); transform: translateY(-1px); }
+.mario-item-button.is-selected:hover { background: #fde047; }
+.mario-item-button:disabled { opacity: 1; }
+.mario-locked-details { padding: 4px 0; }
+.mario-locked-details summary { cursor: pointer; font-weight: 700; }
+.mario-roster { display: grid; gap: 8px; }
+.mario-roster-row input { width: auto; }
+.mario-add-player { display: flex; gap: 8px; }
+.mario-add-player input { margin: 0; }
+.mario-placements { display: grid; gap: 8px; }
+.mario-placement-row { align-items: flex-start; flex-direction: column; }
+.mario-placement-buttons { display: grid; gap: 5px; grid-template-columns: repeat(12, minmax(0, 1fr)); width: 100%; }
+.mario-place-button { background: #1f2937; border: 1px solid #111827; color: #cbd5e1; margin: 0; padding: 7px 3px; }
+.mario-place-button:disabled { background: #d1d5db; border-color: #9ca3af; color: #6b7280; cursor: not-allowed; opacity: 1; }
+.mario-place-button.is-selected { background: var(--primary); border-color: var(--primary); color: #fff; box-shadow: 0 0 0 2px #8abbff; }
+.statistics-filters { display: grid; gap: 8px; grid-template-columns: repeat(4, minmax(0, 1fr)); margin-bottom: 16px; }
+.statistics-filters label { color: var(--muted); font-size: .9rem; }
+.statistics-filters select { margin-top: 4px; }
+.mario-win-chart { display: grid; gap: 8px; margin-bottom: 18px; }
+.mario-chart-row { align-items: center; display: grid; gap: 8px; grid-template-columns: minmax(80px, 140px) 1fr; }
+.mario-chart-bar { background: var(--primary); border-radius: 999px; height: 18px; min-width: 4px; }
 .category-input-grid { display: grid; gap: 6px; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); }
 .visually-hidden { height: 1px; margin: -1px; overflow: hidden; position: absolute; width: 1px; clip: rect(0 0 0 0); }
 
@@ -175,7 +204,7 @@ details { margin: 8px 0; }
 .history-game-group summary { cursor: pointer; font-weight: 700; }
 .history-session-heading { align-items: center; display: flex; gap: 8px; justify-content: space-between; }
 .history-actions { display: flex; gap: 4px; }
-.history-delete, .history-edit { flex: 0 0 auto; font-size: 1rem; height: 32px; margin: 0; padding: 4px; width: 32px; }
+.history-delete, .history-edit, .history-export-session { flex: 0 0 auto; font-size: 1rem; height: 32px; margin: 0; padding: 4px; width: 32px; }
 .round-row { align-items: center; display: flex; gap: 8px; justify-content: space-between; margin: 6px 0; }
 .round-edit { flex: 0 0 auto; margin: 0; padding: 6px 10px; width: auto; }
 
@@ -198,6 +227,7 @@ details { margin: 8px 0; }
 
 @media (max-width: 600px) {
   .game-grid { grid-template-columns: 1fr; }
+  .mario-race-controls, .statistics-filters { grid-template-columns: 1fr; }
   .game-card { min-height: 0; }
   .statistics-tabs { gap: 4px; }
   .statistics-tab { font-size: .9rem; padding: 9px 6px; }

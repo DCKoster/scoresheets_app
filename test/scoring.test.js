@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { finalTotalEngine, rankTotals, roundSumEngine, winnerOnlyEngine } from '../web_app/src/scoring/engines.js';
+import { finalTotalEngine, marioKartEngine, rankTotals, roundSumEngine, winnerOnlyEngine } from '../web_app/src/scoring/engines.js';
+import { MARIO_KART_TRACKS } from '../web_app/src/data/mario-kart.js';
 
 const players = [{ id: 'a', displayName: 'A' }, { id: 'b', displayName: 'B' }];
 
@@ -45,4 +46,18 @@ test('winner-only engine accepts multiple winners and legacy results', () => {
   assert.equal(winnerOnlyEngine.validateSession({ winnerId: 'a' }, players).valid, true);
   assert.equal(winnerOnlyEngine.validateSession({ winnerId: 'missing' }, players).valid, false);
   assert.deepEqual(winnerOnlyEngine.calculateTotals(), {});
+});
+
+test('Mario Kart engine converts unique placements to standard points', () => {
+  const players = [{ id: 'a', displayName: 'A' }, { id: 'b', displayName: 'B' }, { id: 'c', displayName: 'C' }, { id: 'd', displayName: 'D' }];
+  const result = marioKartEngine.validateEntry({ cc: '200cc', itemSet: 'custom', itemIds: ['Mushroom'], participantIds: ['a', 'b', 'c', 'd'], placements: { a: 1, b: 5, c: 8, d: 12 } }, players);
+  assert.equal(result.valid, true);
+  assert.equal(MARIO_KART_TRACKS.length, 96);
+  assert.deepEqual(result.entry.points, { a: 15, b: 8, c: 5, d: 1 });
+  assert.equal(marioKartEngine.validateEntry({ cc: '200cc', itemSet: 'custom', itemIds: ['Mushroom'], participantIds: ['a', 'b'], placements: { a: 1, b: 1 } }, players).valid, false);
+  assert.equal(marioKartEngine.validateEntry({ track: 'Mario Kart Stadium', cc: '200cc', itemSet: 'custom', itemIds: ['Mushroom'], participantIds: ['a', 'b'], placements: { a: 1, b: 2 } }, players).entry.track, 'Mario Kart Stadium');
+  assert.equal(marioKartEngine.validateEntry({ track: 'Not a track', cc: '200cc', itemSet: 'custom', itemIds: ['Mushroom'], participantIds: ['a', 'b'], placements: { a: 1, b: 2 } }, players).valid, false);
+  const secondRace = { ...result.entry, cc: '150cc' };
+  assert.equal(marioKartEngine.validateSession({ races: [result.entry, secondRace] }, players).valid, false);
+  assert.deepEqual(marioKartEngine.calculateTotals({ races: [result.entry] }, players), { a: 15, b: 8, c: 5, d: 1 });
 });

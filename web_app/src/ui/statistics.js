@@ -1,4 +1,5 @@
 import { getGameName } from '../data/games.js';
+import { MARIO_KART_CC_OPTIONS, MARIO_KART_ITEMS, MARIO_KART_ITEM_PRESETS, itemPresetName } from '../data/mario-kart.js';
 
 /**
  * Participant ids belong to one saved session only. A normalized display name
@@ -150,12 +151,81 @@ export function calculateStatistics(sessions = []) {
 // A descriptive alias for callers that only need player-level results.
 export const calculatePlayerStatistics = (sessions = []) => calculateStatistics(sessions).players;
 
+function marioKartRecords(sessions) {
+  const records = [];
+  sessions.filter((session) => session?.scoring?.engineId === 'mario-kart-8').forEach((session) => {
+    const names = new Map((session.participants ?? []).map((participant) => [participant.id, participant.displayName]));
+    (session.entries?.races ?? []).forEach((race) => {
+      race.participantIds?.forEach((id) => {
+        if (!names.has(id)) return;
+        records.push({
+          player: names.get(id), playerKey: normalizePlayerName(names.get(id)),
+          cc: race.cc, itemSet: race.itemSet, itemSetName: itemPresetName(race.itemSet), itemIds: race.itemIds ?? [],
+          placement: Number(race.placements?.[id]), points: Number(race.points?.[id] ?? 0),
+        });
+      });
+    });
+  });
+  return records;
+}
+
+function finishMarioStats(records) {
+  const players = new Map();
+  records.forEach((record) => {
+    let summary = players.get(record.playerKey);
+    if (!summary) { summary = { playerKey: record.playerKey, displayName: record.player, races: 0, wins: 0, totalPoints: 0, totalPlacement: 0 }; players.set(record.playerKey, summary); }
+    summary.races += 1; summary.wins += record.placement === 1 ? 1 : 0; summary.totalPoints += record.points; summary.totalPlacement += record.placement;
+  });
+  return [...players.values()].map((summary) => ({ ...summary, winRate: summary.wins / summary.races, averagePoints: summary.totalPoints / summary.races, averagePlacement: summary.totalPlacement / summary.races })).sort((a, b) => b.totalPoints - a.totalPoints || b.winRate - a.winRate || a.displayName.localeCompare(b.displayName));
+}
+
+export function calculateMarioKartStatistics(sessions = [], filters = {}) {
+  const records = marioKartRecords(sessions).filter((record) => (!filters.player || record.playerKey === normalizePlayerName(filters.player))
+    && (!filters.cc || record.cc === filters.cc) && (!filters.itemSet || record.itemSet === filters.itemSet) && (!filters.item || record.itemIds.includes(filters.item)));
+  const players = finishMarioStats(records);
+  const conditions = new Map();
+  records.forEach((record) => {
+    const key = `${record.cc}|${record.itemSet}`; let condition = conditions.get(key);
+    if (!condition) { condition = { cc: record.cc, itemSet: record.itemSet, itemSetName: record.itemSetName, races: 0, points: 0, wins: 0 }; conditions.set(key, condition); }
+    condition.races += 1; condition.points += record.points; condition.wins += record.placement === 1 ? 1 : 0;
+  });
+  return { records, players, conditions: [...conditions.values()].map((condition) => ({ ...condition, winRate: condition.wins / condition.races, averagePoints: condition.points / condition.races })) };
+}
+
+function renderMarioKartDashboard(container, sessions, i18n) {
+  const allRecords = marioKartRecords(sessions);
+  const filters = { player: '', cc: '', itemSet: '', item: '' };
+  const controls = element('div', '', 'statistics-filters');
+  const addFilter = (label, values, key, labelFor = (value) => value) => {
+    const wrapper = element('label', label); const select = document.createElement('select'); select.id = `mario-stat-${key}`;
+    const all = element('option', i18n.t('statistics.all')); all.value = ''; select.append(all); selectOptions(select, values, labelFor); select.addEventListener('change', () => { filters[key] = select.value; render(); }); wrapper.append(select); controls.append(wrapper);
+  };
+  const selectOptions = (select, values, labelFor) => values.forEach((value) => { const option = element('option', labelFor(value)); option.value = value; select.append(option); });
+  const playerNames = [...new Map(allRecords.map((record) => [record.playerKey, record.player])).values()].sort((a, b) => a.localeCompare(b));
+  addFilter(i18n.t('statistics.player'), playerNames, 'player'); addFilter(i18n.t('marioKart.cc'), MARIO_KART_CC_OPTIONS, 'cc', (value) => i18n.t(`marioKart.cc.${value}`)); addFilter(i18n.t('marioKart.itemSet'), Object.keys(MARIO_KART_ITEM_PRESETS), 'itemSet', itemPresetName); addFilter(i18n.t('statistics.item'), MARIO_KART_ITEMS, 'item');
+  const content = element('div'); container.append(controls, content);
+  const render = () => {
+    const statistics = calculateMarioKartStatistics(sessions, filters); content.replaceChildren();
+    if (!statistics.records.length) return content.append(element('p', i18n.t('statistics.noMatchingRaces')));
+    content.append(element('p', i18n.t('statistics.raceCount', { count: statistics.records.length })));
+    const table = element('table', '', 'statistics-leaderboard'); const header = document.createElement('thead'); const headerRow = document.createElement('tr');
+    [i18n.t('statistics.player'), i18n.t('statistics.races'), i18n.t('statistics.wins'), i18n.t('statistics.winRate'), i18n.t('statistics.averagePoints'), i18n.t('statistics.averagePlacement'), i18n.t('statistics.totalPoints')].forEach((label) => headerRow.append(element('th', label))); header.append(headerRow); table.append(header);
+    const body = document.createElement('tbody'); statistics.players.forEach((player) => { const row = document.createElement('tr'); [player.displayName, player.races, player.wins, formatPercent(player.winRate, i18n.locale), formatScore(player.averagePoints, i18n.locale), formatScore(player.averagePlacement, i18n.locale), player.totalPoints].forEach((value) => row.append(element('td', String(value)))); body.append(row); }); table.append(body); content.append(table);
+    const chart = element('div', '', 'mario-win-chart'); content.append(element('h3', i18n.t('statistics.winRate')), chart);
+    const maxRate = Math.max(...statistics.players.map((player) => player.winRate), 0.01); statistics.players.forEach((player) => { const row = element('div', '', 'mario-chart-row'); row.append(element('span', player.displayName)); const bar = element('div', '', 'mario-chart-bar'); bar.style.width = `${(player.winRate / maxRate) * 100}%`; bar.title = formatPercent(player.winRate, i18n.locale); row.append(bar); chart.append(row); });
+    const conditionTable = element('table', '', 'statistics-leaderboard'); conditionTable.append(element('caption', i18n.t('statistics.byCondition'))); const conditionBody = document.createElement('tbody'); statistics.conditions.sort((a, b) => b.races - a.races).forEach((condition) => { const row = document.createElement('tr'); [i18n.t(`marioKart.cc.${condition.cc}`), condition.itemSetName, condition.races, formatPercent(condition.winRate, i18n.locale), formatScore(condition.averagePoints, i18n.locale)].forEach((value) => row.append(element('td', String(value)))); conditionBody.append(row); }); conditionTable.append(conditionBody); content.append(conditionTable);
+  };
+  render();
+}
+
 function node(tag, text, className) {
   const element = document.createElement(tag);
   element.textContent = text;
   if (className) element.className = className;
   return element;
 }
+
+const element = node;
 
 function formatPercent(value, locale) {
   return new Intl.NumberFormat(locale, { style: 'percent', maximumFractionDigits: 0 }).format(value);
@@ -260,6 +330,9 @@ export function renderStatistics(container, sessions, games, i18n) {
   const overviewPanel = addTab('overview', i18n.t('statistics.tabOverview'));
   const playersPanel = addTab('players', i18n.t('statistics.tabPlayers'));
   const gamesPanel = addTab('games', i18n.t('statistics.tabGames'));
+  const marioSessions = sessions.filter((session) => session?.scoring?.engineId === 'mario-kart-8');
+  let marioPanel;
+  if (marioSessions.length) { marioPanel = addTab('mario-kart', i18n.t('statistics.tabMarioKart')); renderMarioKartDashboard(marioPanel, marioSessions, i18n); }
   const overview = node('div', '', 'statistics-overview');
   for (const [label, value] of [
     [i18n.t('statistics.sessions'), statistics.sessionCount],

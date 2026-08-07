@@ -32,7 +32,7 @@ export function validateGameName(name, games, exceptId = null) {
 }
 
 function validateScoring(scoring) {
-  if (!['round-sum', 'final-total', 'winner-only'].includes(scoring?.engineId)) throw new Error('errors.scoringEngineUnknown');
+  if (!['round-sum', 'final-total', 'winner-only', 'mario-kart-8'].includes(scoring?.engineId)) throw new Error('errors.scoringEngineUnknown');
   const validRanking = scoring.engineId === 'winner-only'
     ? scoring.ranking === 'selected'
     : ['highest', 'lowest'].includes(scoring.ranking);
@@ -84,8 +84,13 @@ function validateBackupSession(session) {
     || typeof session.createdAt !== 'string' || !validParticipants(session.participants)) return false;
   try {
     validateScoring(session.scoring);
-    if (session.playMode === 'cooperative' && session.scoring.engineId !== 'winner-only') return false;
     const engine = getScoringEngine(session.scoring.engineId);
+    if (session.scoring.engineId === 'mario-kart-8') {
+      if (!Number.isInteger(session.targetRaces) || session.targetRaces < 1 || !engine.validateSession(session.entries, session.participants).valid) return false;
+      const totals = engine.calculateTotals(session.entries, session.participants);
+      return session.totals && Object.entries(totals).every(([id, total]) => session.totals[id] === total);
+    }
+    if (session.playMode === 'cooperative' && session.scoring.engineId !== 'winner-only') return false;
     const scoreCategories = Array.isArray(session.scoreCategories) ? session.scoreCategories : [];
     if (scoreCategories.length && (!['round-sum', 'final-total'].includes(session.scoring.engineId) || !['per-round', 'final-total'].includes(session.categoryScoring))) return false;
     if (!engine.validateSession(session.entries, session.participants, scoreCategories).valid) return false;
@@ -112,6 +117,16 @@ export async function exportBackup(storage) {
   const games = readArray(storage, CUSTOM_GAMES_KEY).filter((game) => game?.origin === 'custom').map(normalizeStoredGame);
   const sessions = readArray(storage, SESSIONS_KEY);
   return { schemaVersion: BACKUP_SCHEMA_VERSION, sessions, customGames: games };
+}
+
+export async function exportSessionBackup(storage, sessionId) {
+  const backup = await exportBackup(storage);
+  const session = backup.sessions.find((item) => item.id === sessionId);
+  return {
+    ...backup,
+    sessions: session ? [session] : [],
+    customGames: backup.customGames.filter((game) => game.id === session?.gameId),
+  };
 }
 
 export async function importBackup(storage, backup) {

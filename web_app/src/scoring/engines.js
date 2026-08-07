@@ -1,3 +1,5 @@
+import { MARIO_KART_CC_OPTIONS, MARIO_KART_ITEMS, MARIO_KART_ITEM_PRESETS, MARIO_KART_POINTS, MARIO_KART_TRACKS } from '../data/mario-kart.js';
+
 function parseNumber(value) {
   if (String(value).trim() === '') return { valid: false, error: 'errors.scoreRequired' };
   const number = Number(value);
@@ -159,10 +161,60 @@ export const winnerOnlyEngine = {
   calculateTotals: () => ({}),
 };
 
+function marioKartParticipants(race, participants) {
+  const ids = Array.isArray(race?.participantIds) ? race.participantIds : [];
+  return ids.map((id) => participants.find((participant) => participant.id === id)).filter(Boolean);
+}
+
+function marioKartRacePoints(race, participants) {
+  return marioKartParticipants(race, participants).reduce((points, participant) => {
+    const placement = Number(race.placements?.[participant.id]);
+    points[participant.id] = MARIO_KART_POINTS[placement - 1] ?? 0;
+    return points;
+  }, {});
+}
+
+export const marioKartEngine = {
+  id: 'mario-kart-8',
+  initialEntries: () => ({ races: [] }),
+  validateEntry(race, participants) {
+    const racers = marioKartParticipants(race, participants);
+    if (racers.length < 2 || racers.length !== new Set(race?.participantIds ?? []).size || racers.length !== (race?.participantIds ?? []).length) return { valid: false, error: 'errors.marioKartPlayersRequired' };
+    if (!MARIO_KART_CC_OPTIONS.includes(race?.cc)) return { valid: false, error: 'errors.marioKartCcRequired' };
+    if (race?.track && !MARIO_KART_TRACKS.includes(race.track)) return { valid: false, error: 'errors.marioKartTrackInvalid' };
+    if (!MARIO_KART_ITEM_PRESETS[race?.itemSet]) return { valid: false, error: 'errors.marioKartItemSetRequired' };
+    const placements = racers.map((participant) => Number(race.placements?.[participant.id]));
+    if (placements.some((placement) => !Number.isInteger(placement) || placement < 1 || placement > 12)) return { valid: false, error: 'errors.marioKartPlacementRequired' };
+    if (new Set(placements).size !== placements.length) return { valid: false, error: 'errors.marioKartPlacementDuplicate' };
+    const itemIds = Array.isArray(race.itemIds) ? race.itemIds : [];
+    if (race.itemSet === 'custom' && (!itemIds.length || itemIds.some((item) => !MARIO_KART_ITEMS.includes(item)))) return { valid: false, error: 'errors.marioKartItemsRequired' };
+    const normalizedPlacements = racers.reduce((result, participant) => { result[participant.id] = Number(race.placements[participant.id]); return result; }, {});
+    const normalizedRace = { ...race, track: race.track ?? '', participantIds: racers.map((participant) => participant.id), placements: normalizedPlacements, itemIds: [...new Set(itemIds)] };
+    const points = marioKartRacePoints(normalizedRace, participants);
+    if (race.points && racers.some((participant) => Number(race.points[participant.id]) !== points[participant.id])) return { valid: false, error: 'errors.marioKartPointsInvalid' };
+    return { valid: true, entry: { ...normalizedRace, points } };
+  },
+  validateSession(entries, participants) {
+    if (!Array.isArray(entries?.races) || !entries.races.length) return { valid: false, error: 'errors.marioKartRaceRequired' };
+    if (!entries.races.every((race) => this.validateEntry(race, participants).valid)) return { valid: false, error: 'errors.marioKartRaceInvalid' };
+    const first = entries.races[0];
+    const sameItems = (left, right) => JSON.stringify([...(left ?? [])].sort()) === JSON.stringify([...(right ?? [])].sort());
+    return entries.races.every((race) => race.cc === first.cc && race.itemSet === first.itemSet && sameItems(race.itemIds, first.itemIds))
+      ? { valid: true } : { valid: false, error: 'errors.marioKartRulesLocked' };
+  },
+  calculateTotals(entries, participants) {
+    return participants.reduce((totals, participant) => {
+      totals[participant.id] = (entries?.races ?? []).reduce((sum, race) => sum + Number(race.points?.[participant.id] ?? 0), 0);
+      return totals;
+    }, {});
+  },
+};
+
 export const scoringEngines = new Map([
   [roundSumEngine.id, roundSumEngine],
   [finalTotalEngine.id, finalTotalEngine],
   [winnerOnlyEngine.id, winnerOnlyEngine],
+  [marioKartEngine.id, marioKartEngine],
 ]);
 
 export function getScoringEngine(id) {

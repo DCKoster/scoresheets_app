@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'scoresheets-shell-v5';
+const CACHE_VERSION = 'scoresheets-shell-v8';
 
 const APP_SHELL = [
   '/',
@@ -8,6 +8,7 @@ const APP_SHELL = [
   './src/main.js',
   './src/i18n.js',
   './src/data/games.js',
+  './src/data/mario-kart.js',
   './src/utils/players.js',
   './src/state/repositories.js',
   './src/scoring/engines.js',
@@ -17,6 +18,7 @@ const APP_SHELL = [
   './src/ui/statistics.js',
   './src/ui/game-manager.js',
   './src/ui/session-form.js',
+  './src/ui/mario-kart.js',
 ];
 
 self.addEventListener('install', (event) => {
