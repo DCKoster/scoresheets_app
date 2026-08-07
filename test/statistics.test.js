@@ -104,3 +104,20 @@ test('Mario Kart statistics filter by CC and individual items with variable part
   assert.deepEqual(result.players.map(({ displayName, races, wins, averagePoints }) => [displayName, races, wins, averagePoints]), [['A', 1, 1, 15], ['B', 1, 0, 12]]);
   assert.equal(calculateMarioKartStatistics([session], { item: 'Red Shell' }).players[0].displayName, 'C');
 });
+
+test('Mario Kart statistics distinguish race wins from session wins', () => {
+  const session = {
+    id: 'mk-session', gameId: 'mario-kart-8', gameNameAtPlay: 'Mario Kart 8', scoring: { engineId: 'mario-kart-8', ranking: 'highest' },
+    participants: [{ id: 'a', displayName: 'A' }, { id: 'b', displayName: 'B' }],
+    entries: { races: [
+      { cc: '150cc', itemSet: 'normal', itemIds: [], participantIds: ['a', 'b'], placements: { a: 1, b: 2 }, points: { a: 15, b: 12 } },
+      { cc: '150cc', itemSet: 'normal', itemIds: [], participantIds: ['a', 'b'], placements: { a: 2, b: 1 }, points: { a: 12, b: 15 } },
+    ] },
+    totals: { a: 27, b: 27 },
+  };
+  const result = calculateMarioKartStatistics([session]);
+  assert.deepEqual(result.players.map(({ displayName, races, wins, winRate, sessions, sessionWins, sessionWinRate }) => [displayName, races, wins, winRate, sessions, sessionWins, sessionWinRate]), [
+    ['A', 2, 1, 0.5, 1, 1, 1],
+    ['B', 2, 1, 0.5, 1, 1, 1],
+  ]);
+});
