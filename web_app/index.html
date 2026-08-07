@@ -78,8 +78,6 @@
             <input id="editing-game-id" type="hidden" />
             <label for="game-name" data-i18n="games.name">Game name</label>
             <input id="game-name" type="text" required />
-            <label for="game-category" data-i18n="games.category">Category (optional)</label>
-            <input id="game-category" type="text" maxlength="40" />
             <label for="play-mode" data-i18n="games.playMode">Play mode</label>
             <select id="play-mode"><option value="competitive" data-i18n="games.playMode.competitive">Competitive</option><option value="cooperative" data-i18n="games.playMode.cooperative">Cooperative</option></select>
             <fieldset id="score-categories-fieldset"><legend data-i18n="games.scoreCategories">Score categories</legend><div id="score-categories"></div><button id="add-score-category" class="secondary" data-i18n="games.addScoreCategory" type="button">Add score category</button><label for="category-scoring" data-i18n="games.categoryScoring">Category entry</label><select id="category-scoring"><option value="per-round" data-i18n="games.perRound">Per round</option><option value="final-total" data-i18n="games.finalCategoryTotal">Final totals</option></select></fieldset>
@@ -89,7 +87,7 @@
             <select id="ranking"><option value="highest" data-i18n="games.ranking.highest">Highest wins</option><option value="lowest" data-i18n="games.ranking.lowest">Lowest wins</option></select>
             <div class="button-row"><button id="save-game" data-i18n="games.create" type="submit">Create game</button><button id="cancel-game-edit" class="secondary hidden" data-i18n="games.cancel" type="button">Cancel</button></div>
           </form>
-          <div class="game-filters"><label class="visually-hidden" for="game-search" data-i18n="games.search">Search games</label><input id="game-search" type="search" placeholder="Search games" /><label class="visually-hidden" for="category-filter" data-i18n="games.categoryFilter">Filter by category</label><select id="category-filter"></select></div>
+          <div class="game-filters"><label class="visually-hidden" for="game-search" data-i18n="games.search">Search games</label><input id="game-search" type="search" placeholder="Search games" /></div>
           <div id="games-list"></div>
         </section>
       </section>

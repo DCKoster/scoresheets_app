@@ -5,7 +5,7 @@ export const CUSTOM_GAMES_KEY = 'scoresheets-web-games-v2';
 export const SESSIONS_KEY = 'scoresheets-web-sessions-v2';
 export const LEGACY_KEY = 'scoresheets-web-v1';
 export const BACKUP_SCHEMA_VERSION = 1;
-export const CATEGORY_MAX_LENGTH = 40;
+export const SCORE_CATEGORY_MAX_LENGTH = 40;
 
 export function createId(prefix = 'id') {
   if (globalThis.crypto?.randomUUID) return `${prefix}-${globalThis.crypto.randomUUID()}`;
@@ -39,21 +39,14 @@ function validateScoring(scoring) {
   if (!validRanking) throw new Error('errors.rankingUnknown');
 }
 
-export function normalizeCategory(value) {
-  const trimmed = String(value ?? '').trim();
-  return trimmed || undefined;
-}
-
 function normalizeScoreCategories(categories) {
   if (!Array.isArray(categories)) return [];
   return categories.map((value) => String(value ?? '').trim()).filter(Boolean);
 }
 
 function validateMetadata(input) {
-  const category = normalizeCategory(input.category);
   const scoreCategories = normalizeScoreCategories(input.scoreCategories);
-  if (category && category.length > CATEGORY_MAX_LENGTH) throw new Error('errors.categoryTooLong');
-  if (scoreCategories.some((value) => value.length > CATEGORY_MAX_LENGTH)) throw new Error('errors.scoreCategoryTooLong');
+  if (scoreCategories.some((value) => value.length > SCORE_CATEGORY_MAX_LENGTH)) throw new Error('errors.scoreCategoryTooLong');
   if (new Set(scoreCategories.map(normalizedName)).size !== scoreCategories.length) throw new Error('errors.scoreCategoryDuplicate');
   const playMode = input.playMode === 'cooperative' ? 'cooperative' : input.playMode === 'competitive' ? 'competitive' : undefined;
   if (!playMode) throw new Error('errors.playModeUnknown');
@@ -62,15 +55,14 @@ function validateMetadata(input) {
   if (scoreCategories.length && ((categoryScoring === 'per-round' && input.scoring?.engineId !== 'round-sum') || (categoryScoring === 'final-total' && input.scoring?.engineId !== 'final-total'))) throw new Error('errors.categoryScoringMismatch');
   if (scoreCategories.length && input.scoring?.engineId === 'winner-only') throw new Error('errors.categoryEngineInvalid');
   if (playMode === 'cooperative' && input.scoring?.engineId !== 'winner-only') throw new Error('errors.cooperativeEngineInvalid');
-  return { ...(category ? { category } : {}), playMode, scoreCategories, ...(categoryScoring ? { categoryScoring } : {}) };
+  return { playMode, scoreCategories, ...(categoryScoring ? { categoryScoring } : {}) };
 }
 
 function normalizeStoredGame(game) {
   if (!game || typeof game !== 'object') return game;
-  const category = normalizeCategory(game.category);
   const scoreCategories = normalizeScoreCategories(game.scoreCategories ?? (game.categories === true ? [] : game.categories));
-  const normalized = { ...game, schemaVersion: game.schemaVersion ?? 2, category: category, playMode: game.playMode === 'cooperative' ? 'cooperative' : 'competitive', scoreCategories };
-  if (!category) delete normalized.category;
+  const normalized = { ...game, schemaVersion: game.schemaVersion ?? 2, playMode: game.playMode === 'cooperative' ? 'cooperative' : 'competitive', scoreCategories };
+  delete normalized.category;
   if (scoreCategories.length) normalized.categoryScoring = game.categoryScoring ?? (game.scoring?.engineId === 'round-sum' ? 'per-round' : 'final-total');
   else delete normalized.categoryScoring;
   return normalized;
@@ -146,7 +138,8 @@ export async function importBackup(storage, backup) {
     else {
       gameIds.add(game.id); gameNames.add(normalizedName(game.name));
       const metadata = validateMetadata({ ...game, playMode: game.playMode ?? 'competitive' });
-      games.push({ ...game, schemaVersion: 3, origin: 'custom', scoring: { ...game.scoring }, ...metadata });
+      const { category: _legacyCategory, ...gameWithoutCategory } = game;
+      games.push({ ...gameWithoutCategory, schemaVersion: 3, origin: 'custom', scoring: { ...game.scoring }, ...metadata });
     }
   }
   if (sessions.length) storage.setItem(SESSIONS_KEY, JSON.stringify([...sessions, ...localSessions]));
@@ -190,7 +183,7 @@ export class LocalGameRepository {
     let name = copyName(sourceName, 1);
     let number = 2;
     while (!validateGameName(name, games).valid) name = copyName(sourceName, number++);
-    return this.create({ name, scoring: source.scoring, category: source.category, playMode: source.playMode, scoreCategories: source.scoreCategories, categoryScoring: source.categoryScoring });
+    return this.create({ name, scoring: source.scoring, playMode: source.playMode, scoreCategories: source.scoreCategories, categoryScoring: source.categoryScoring });
   }
   async delete(id) {
     const games = await this.list();

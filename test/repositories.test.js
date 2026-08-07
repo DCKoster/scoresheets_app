@@ -44,11 +44,10 @@ test('winner-only games use the selected-result ranking', async () => {
 
 test('games normalize metadata and preserve categories when duplicated', async () => {
   const repository = new LocalGameRepository(new MemoryStorage());
-  const game = await repository.create({ name: 'Categorized game', category: '  Card game ', playMode: 'competitive', scoreCategories: ['Red', 'Blue'], categoryScoring: 'per-round', scoring: { engineId: 'round-sum', ranking: 'lowest' } });
+  const game = await repository.create({ name: 'Categorized game', playMode: 'competitive', scoreCategories: ['Red', 'Blue'], categoryScoring: 'per-round', scoring: { engineId: 'round-sum', ranking: 'lowest' } });
   assert.deepEqual(game.scoreCategories, ['Red', 'Blue']);
-  assert.equal(game.category, 'Card game');
-  assert.equal((await repository.duplicate(game.id)).category, 'Card game');
-  await assert.rejects(() => repository.create({ name: 'Invalid', category: 'x'.repeat(41), scoring: { engineId: 'final-total', ranking: 'highest' } }), /errors\.categoryTooLong/);
+  assert.equal('category' in game, false);
+  assert.equal('category' in (await repository.duplicate(game.id)), false);
   await assert.rejects(() => repository.create({ name: 'Duplicate categories', scoreCategories: ['Red', 'red'], categoryScoring: 'final-total', scoring: { engineId: 'final-total', ranking: 'highest' } }), /errors\.scoreCategoryDuplicate/);
   await assert.rejects(() => repository.create({ name: 'Bad co-op', playMode: 'cooperative', scoring: { engineId: 'final-total', ranking: 'highest' } }), /errors\.cooperativeEngineInvalid/);
 });

@@ -6,16 +6,13 @@ function iconButton(icon, label, action, className = '') { const button = node('
 export function renderGameManager(container, games, actions, i18n, filters = {}) {
   container.replaceChildren();
   const query = String(filters.query ?? '').trim().toLocaleLowerCase();
-  const category = filters.category ?? '';
-  const visible = games.filter((game) => (!query || `${getGameName(game, i18n.locale)} ${game.category ?? ''}`.toLocaleLowerCase().includes(query))
-    && (!category || (category === '__uncategorized__' ? !game.category : game.category.toLocaleLowerCase() === category)));
+  const visible = games.filter((game) => !query || getGameName(game, i18n.locale).toLocaleLowerCase().includes(query));
   if (!visible.length) return container.append(node('p', i18n.t('games.noMatches')));
   const grid = node('div', '', 'game-grid');
   visible.forEach((game) => {
     const card = node('article', '', 'game-card'); card.tabIndex = 0;
     card.append(node('h3', getGameName(game, i18n.locale)));
     const tags = node('div', '', 'game-tags');
-    if (game.category) tags.append(node('span', game.category, 'game-tag category-tag'));
     tags.append(node('span', `${game.playMode === 'cooperative' ? '👥' : '⚔'} ${i18n.t(`games.playMode.${game.playMode}`)}`, `game-tag ${game.playMode === 'cooperative' ? 'cooperative-tag' : 'competitive-tag'}`));
     const engine = game.scoring.engineId === 'winner-only' ? i18n.t('games.engine.winner-only') : i18n.t('games.summary', { engine: i18n.t(`games.engine.${game.scoring.engineId}`), ranking: i18n.t(`games.ranking.${game.scoring.ranking}`) });
     tags.append(node('span', engine, 'game-tag scoring-tag'));

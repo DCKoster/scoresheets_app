@@ -18,7 +18,7 @@ const dom = {
   entryPanel: byId('entry-panel'), savedList: byId('saved-list'), homeSummary: byId('home-summary'),
   statistics: byId('statistics'),
   gamesList: byId('games-list'), gameForm: byId('game-form'), gameName: byId('game-name'),
-  addGame: byId('add-game'), gameCategory: byId('game-category'), playMode: byId('play-mode'), scoreCategories: byId('score-categories'), addScoreCategory: byId('add-score-category'), categoryScoring: byId('category-scoring'), gameSearch: byId('game-search'), categoryFilter: byId('category-filter'),
+  addGame: byId('add-game'), playMode: byId('play-mode'), scoreCategories: byId('score-categories'), addScoreCategory: byId('add-score-category'), categoryScoring: byId('category-scoring'), gameSearch: byId('game-search'),
   entryMode: byId('entry-mode'), ranking: byId('ranking'), rankingLabel: byId('ranking-label'), editingGameId: byId('editing-game-id'),
   saveGame: byId('save-game'), cancelEdit: byId('cancel-game-edit'), error: byId('app-error'),
   language: byId('language'),
@@ -27,7 +27,7 @@ const dom = {
 };
 const gameRepository = new LocalGameRepository(localStorage);
 const sessionRepository = new LocalSessionRepository(localStorage);
-const state = { activeSession: null, activeEditorState: { draft: {}, editingRoundId: null }, editingSessionId: null, games: [], sessions: [], historyGrouped: false, gameFilters: { query: '', category: '' }, draftScoreCategories: [] };
+const state = { activeSession: null, activeEditorState: { draft: {}, editingRoundId: null }, editingSessionId: null, games: [], sessions: [], historyGrouped: false, gameFilters: { query: '' }, draftScoreCategories: [], competitiveEntryMode: null };
 const browserLanguages = navigator.languages?.length ? navigator.languages : [navigator.language];
 let i18n = createTranslator(resolveLocale(localStorage, browserLanguages));
 
@@ -68,7 +68,6 @@ function renderDynamic() {
     renderDynamic();
   });
   renderStatistics(dom.statistics, state.sessions, state.games, i18n);
-  populateCategoryFilter();
   renderGameManager(dom.gamesList, state.games, {
     duplicate: async (id) => run(async () => {
       const copyName = (name, number) => i18n.t(number === 1 ? 'games.copy' : 'games.copyNumber', { name, number });
@@ -167,14 +166,14 @@ async function importSessions(file) {
 
 function beginEdit(game) {
   dom.editingGameId.value = game.id; dom.gameName.value = game.name;
-  dom.gameCategory.value = game.category ?? ''; dom.playMode.value = game.playMode ?? 'competitive'; state.draftScoreCategories = [...(game.scoreCategories ?? [])]; dom.categoryScoring.value = game.categoryScoring ?? 'per-round'; renderScoreCategoryInputs();
+  dom.playMode.value = game.playMode ?? 'competitive'; state.competitiveEntryMode = null; state.draftScoreCategories = [...(game.scoreCategories ?? [])]; dom.categoryScoring.value = game.categoryScoring ?? 'per-round'; renderScoreCategoryInputs();
   dom.entryMode.value = game.scoring.engineId; dom.ranking.value = game.scoring.ranking;
   updateGameModeControls();
   dom.gameForm.classList.remove('hidden'); dom.addGame.classList.add('hidden'); dom.saveGame.textContent = i18n.t('games.saveChanges'); dom.cancelEdit.classList.remove('hidden'); dom.gameName.focus();
 }
 
 function clearGameForm() {
-  dom.gameForm.reset(); dom.editingGameId.value = ''; state.draftScoreCategories = []; renderScoreCategoryInputs(); updateRankingControl(); dom.saveGame.textContent = i18n.t('games.create'); dom.cancelEdit.classList.add('hidden'); dom.gameForm.classList.add('hidden'); dom.addGame.classList.remove('hidden');
+  dom.gameForm.reset(); dom.editingGameId.value = ''; state.competitiveEntryMode = null; state.draftScoreCategories = []; renderScoreCategoryInputs(); updateRankingControl(); dom.saveGame.textContent = i18n.t('games.create'); dom.cancelEdit.classList.add('hidden'); dom.gameForm.classList.add('hidden'); dom.addGame.classList.remove('hidden');
 }
 
 function openCreateGame() { clearGameForm(); dom.gameForm.classList.remove('hidden'); dom.addGame.classList.add('hidden'); dom.gameName.focus(); }
@@ -186,11 +185,6 @@ function renderScoreCategoryInputs() {
 }
 
 function populateCategoryFilter() {
-  const selected = state.gameFilters.category; const categories = [...new Set(state.games.map((game) => game.category?.toLocaleLowerCase()).filter(Boolean))].sort(); dom.categoryFilter.replaceChildren();
-  [['', i18n.t('games.allCategories')], ['__uncategorized__', i18n.t('games.uncategorized')], ...categories.map((value) => [value, value])].forEach(([value, label]) => { const option = document.createElement('option'); option.value = value; option.textContent = label; dom.categoryFilter.append(option); });
-  dom.categoryFilter.value = categories.includes(selected) || ['', '__uncategorized__'].includes(selected) ? selected : '';
-}
-
 function updateRankingControl() {
   const isWinnerOnly = dom.entryMode.value === 'winner-only';
   dom.ranking.disabled = isWinnerOnly;
@@ -202,7 +196,12 @@ function updateRankingControl() {
 
 function updateGameModeControls() {
   const cooperative = dom.playMode.value === 'cooperative';
-  if (cooperative) dom.entryMode.value = 'winner-only';
+  if (cooperative) {
+    if (dom.entryMode.value !== 'winner-only') state.competitiveEntryMode = dom.entryMode.value;
+    dom.entryMode.value = 'winner-only';
+  } else if (dom.entryMode.value === 'winner-only' && state.competitiveEntryMode) {
+    dom.entryMode.value = state.competitiveEntryMode;
+  }
   dom.entryMode.disabled = cooperative;
   document.getElementById('score-categories-fieldset').classList.toggle('hidden', dom.entryMode.value === 'winner-only');
   if (dom.entryMode.value === 'round-sum') dom.categoryScoring.value = 'per-round';
@@ -215,7 +214,7 @@ function updateGameModeControls() {
 dom.gameForm.addEventListener('submit', (event) => {
   event.preventDefault();
   run(async () => {
-    const data = { name: dom.gameName.value, category: dom.gameCategory.value, playMode: dom.playMode.value, scoreCategories: state.draftScoreCategories, categoryScoring: dom.categoryScoring.value, scoring: { engineId: dom.entryMode.value, ranking: dom.entryMode.value === 'winner-only' ? 'selected' : dom.ranking.value } };
+    const data = { name: dom.gameName.value, playMode: dom.playMode.value, scoreCategories: state.draftScoreCategories, categoryScoring: dom.categoryScoring.value, scoring: { engineId: dom.entryMode.value, ranking: dom.entryMode.value === 'winner-only' ? 'selected' : dom.ranking.value } };
     if (dom.editingGameId.value) await gameRepository.update(dom.editingGameId.value, data); else await gameRepository.create(data);
     clearGameForm(); await refresh();
   });
@@ -224,7 +223,6 @@ dom.cancelEdit.addEventListener('click', clearGameForm);
 dom.addGame.addEventListener('click', openCreateGame);
 dom.addScoreCategory.addEventListener('click', () => { state.draftScoreCategories.push(''); renderScoreCategoryInputs(); });
 dom.gameSearch.addEventListener('input', () => { state.gameFilters.query = dom.gameSearch.value; renderDynamic(); });
-dom.categoryFilter.addEventListener('change', () => { state.gameFilters.category = dom.categoryFilter.value; renderDynamic(); });
 dom.entryMode.addEventListener('change', updateGameModeControls);
 dom.playMode.addEventListener('change', updateGameModeControls);
 wireTabNavigation(dom.tabButtons, dom.views, (nextView) => {

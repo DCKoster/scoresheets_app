@@ -5,7 +5,7 @@ export const BUILTIN_GAMES = Object.freeze([
     names: Object.freeze({ en: 'Take 5!', nl: 'Take 5!' }),
     origin: 'builtin',
     scoring: Object.freeze({ engineId: 'round-sum', ranking: 'lowest' }),
-    category: 'Card game', playMode: 'competitive', scoreCategories: Object.freeze([]),
+    playMode: 'competitive', scoreCategories: Object.freeze([]),
   }),
   Object.freeze({
     schemaVersion: 3,
@@ -13,7 +13,7 @@ export const BUILTIN_GAMES = Object.freeze([
     names: Object.freeze({ en: 'Pick-omino', nl: 'Regenwormen' }),
     origin: 'builtin',
     scoring: Object.freeze({ engineId: 'final-total', ranking: 'highest' }),
-    category: 'Dice game', playMode: 'competitive', scoreCategories: Object.freeze([]),
+    playMode: 'competitive', scoreCategories: Object.freeze([]),
   }),
   Object.freeze({
     schemaVersion: 3,
@@ -21,7 +21,7 @@ export const BUILTIN_GAMES = Object.freeze([
     names: Object.freeze({ en: 'Dirty Pig', nl: 'Moddervarkens' }),
     origin: 'builtin',
     scoring: Object.freeze({ engineId: 'winner-only', ranking: 'selected' }),
-    category: 'Card game', playMode: 'competitive', scoreCategories: Object.freeze([]),
+    playMode: 'competitive', scoreCategories: Object.freeze([]),
   }),
 ]);
 
