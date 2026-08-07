@@ -1,7 +1,7 @@
-const CACHE_VERSION = 'scoresheets-shell-v4';
+const CACHE_VERSION = 'scoresheets-shell-v5';
 
 const APP_SHELL = [
-  './index.html',
+  '/',
   './styles.css',
   './manifest.webmanifest',
   './icons/icon.svg',
@@ -63,10 +63,10 @@ self.addEventListener('fetch', (event) => {
 
   // Navigation: serve the cached application shell.
   if (request.mode === 'navigate') {
-    event.respondWith(
-      caches.match('./index.html').then((cached) => {
-        return cached || fetch(request);
-      })
+  event.respondWith(
+    caches.match('/').then((cached) => {
+      return cached || fetch(request);
+    })
     );
 
     return;
