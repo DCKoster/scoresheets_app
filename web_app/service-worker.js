@@ -15,13 +15,14 @@ self.addEventListener('activate', (event) => {
   console.log('Service worker activating...');
   event.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((key) => key !== CACHE_VERSION).map((key) => caches.delete(key)))).then(() => self.clients.claim()));
 });
-self.addEventListener('fetch', (event) => {
+self.addEventListener('fetch', async (event) => {
   console.log('Service worker fetching', event.request.url);
   if (event.request.method !== 'GET') return;
   const request = event.request;
   if (request.mode === 'navigate') {
     console.log('Service worker handling navigation request for', request.url);
-    event.respondWith(caches.match('./index.html').then((cached) => cached || fetch(request).catch(() => caches.match('./index.html'))));
+    const fromCache = await caches.match('./index.html');
+    event.respondWith(fromCache ?? fetch(request));
     return;
   }
   event.respondWith(caches.match(request).then((cached) => {
