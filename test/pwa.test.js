@@ -15,4 +15,6 @@ test('the PWA declares a manifest and versioned offline shell', async () => {
   assert.match(worker, /'\.\/src\/main\.js'/);
   assert.match(worker, /request\.mode === 'navigate'/);
   assert.match(worker, /caches\.delete/);
+  assert.match(worker, /!response\.redirected/);
+  assert.doesNotMatch(worker, /cache\.put\(request, response\.clone\(\)\)\);/);
 });
