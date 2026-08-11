@@ -274,6 +274,7 @@ dom.gameSearch.addEventListener('input', () => { state.gameFilters.query = dom.g
 dom.entryMode.addEventListener('change', updateGameModeControls);
 dom.playMode.addEventListener('change', updateGameModeControls);
 wireTabNavigation(dom.tabButtons, dom.views, (nextView) => {
+  reportError('');
   if (nextView === 'new-session' && !state.activeSession) dom.newSessionCard.classList.remove('hidden');
   showView(nextView, dom.views, dom.tabButtons);
 });

@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'scoresheets-shell-v8';
+const CACHE_VERSION = 'scoresheets-shell-v9';
 
 const APP_SHELL = [
   '/',

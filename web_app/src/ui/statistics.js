@@ -70,8 +70,11 @@ function sortStandings(players) {
 export function calculateStatistics(sessions = []) {
   const players = new Map();
   const games = new Map();
+  let normalSessionCount = 0;
 
   for (const session of sessions) {
+    if (session?.scoring?.engineId === 'mario-kart-8') continue;
+    normalSessionCount += 1;
     if (!Array.isArray(session?.participants)) continue;
     const game = { id: String(session.gameId ?? session.gameNameAtPlay ?? ''), name: session.gameNameAtPlay || session.gameId || '' };
     const ensureGame = () => {
@@ -145,11 +148,78 @@ export function calculateStatistics(sessions = []) {
     })),
   })).sort((a, b) => b.sessionCount - a.sessionCount || a.gameNameAtPlay.localeCompare(b.gameNameAtPlay));
 
-  return { sessionCount: sessions.length, gameCount: gameResults.length, players: result, games: gameResults };
+  return { sessionCount: normalSessionCount, gameCount: gameResults.length, players: result, games: gameResults };
 }
 
 // A descriptive alias for callers that only need player-level results.
 export const calculatePlayerStatistics = (sessions = []) => calculateStatistics(sessions).players;
+
+function chartSessionLabel(session, index, locale) {
+  const date = new Date(session.createdAt);
+  return Number.isNaN(date.getTime())
+    ? String(index + 1)
+    : new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short' }).format(date);
+}
+
+/** Return chronological, normal-engine series for the statistics charts. */
+export function calculateChartData(sessions = [], gameId = '', locale = 'en') {
+  const selectedSessions = sessions
+    .filter((session) => session?.scoring?.engineId !== 'mario-kart-8' && (!gameId || String(session.gameId ?? session.gameNameAtPlay ?? '') === gameId))
+    .map((session, index) => ({ session, originalIndex: index }))
+    .sort((a, b) => {
+      const first = new Date(a.session.createdAt).getTime();
+      const second = new Date(b.session.createdAt).getTime();
+      const firstTime = Number.isFinite(first) ? first : Number.POSITIVE_INFINITY;
+      const secondTime = Number.isFinite(second) ? second : Number.POSITIVE_INFINITY;
+      return firstTime - secondTime || a.originalIndex - b.originalIndex;
+    })
+    .map(({ session }, index) => ({
+      id: session.id,
+      label: chartSessionLabel(session, index, locale),
+      engineId: session.scoring?.engineId,
+      ranking: session.scoring?.ranking,
+      participants: session.participants ?? [],
+      scores: Object.fromEntries((session.participants ?? []).map((participant) => [
+        normalizePlayerName(participant.displayName), Number(session.totals?.[participant.id]),
+      ]).filter(([, score]) => Number.isFinite(score))),
+      rounds: session.scoring?.engineId === 'round-sum'
+        ? (session.entries?.rounds ?? []).map((round) => Object.fromEntries((session.participants ?? []).map((participant) => {
+          const value = round.scores?.[participant.id];
+          const score = value && typeof value === 'object'
+            ? Object.values(value).reduce((total, categoryScore) => total + (Number(categoryScore) || 0), 0)
+            : Number(value);
+          return [normalizePlayerName(participant.displayName), Number.isFinite(score) ? score : null];
+        })))
+        : [],
+    }));
+  const playerNames = [...new Map(selectedSessions.flatMap((item) => item.participants.map((participant) => [normalizePlayerName(participant.displayName), String(participant.displayName).trim()]))).entries()];
+  return { sessions: selectedSessions, players: playerNames.map(([key, displayName]) => ({ key, displayName })) };
+}
+
+/** Data used by the engine-specific statistics dashboard. */
+export function calculateGameAnalytics(sessions = [], gameId = '', locale = 'en') {
+  const data = calculateChartData(sessions, gameId, locale);
+  const players = data.players;
+  const winnerMatrix = Object.fromEntries(players.map((row) => [row.key, Object.fromEntries(players.map((column) => [column.key, 0]))]));
+  const cumulativeWins = Object.fromEntries(players.map((player) => [player.key, []]));
+  const winTotals = Object.fromEntries(players.map((player) => [player.key, 0]));
+  data.sessions.forEach((item) => {
+    const winnerIds = sessions.find((session) => session.id === item.id)?.entries;
+    const winners = new Set(Array.isArray(winnerIds?.winnerIds) ? winnerIds.winnerIds : winnerIds?.winnerId == null ? [] : [winnerIds.winnerId]);
+    const winnerKeys = new Set((sessions.find((session) => session.id === item.id)?.participants ?? []).filter((participant) => winners.has(participant.id)).map((participant) => normalizePlayerName(participant.displayName)));
+    players.forEach((player) => {
+      if (winnerKeys.has(player.key)) winTotals[player.key] += 1;
+      cumulativeWins[player.key].push(winTotals[player.key]);
+    });
+    winnerKeys.forEach((winner) => players.forEach((opponent) => {
+      if (winner !== opponent.key && !winnerKeys.has(opponent.key) && winnerMatrix[winner]?.[opponent.key] !== undefined) winnerMatrix[winner][opponent.key] += 1;
+    }));
+  });
+  const distributions = Object.fromEntries(players.map((player) => [player.key, data.sessions.map((item) => item.scores[player.key]).filter(Number.isFinite)]));
+  const latestRoundSession = [...data.sessions].reverse().find((item) => item.rounds.length);
+  const roundScores = latestRoundSession?.rounds ?? [];
+  return { ...data, cumulativeWins, winnerMatrix, distributions, latestRoundSession, roundScores };
+}
 
 function marioKartRecords(sessions) {
   const records = [];
@@ -300,11 +370,166 @@ function renderLeaderboard(container, players, i18n, showGameDetails = false, ga
   container.append(table);
 }
 
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+function svgNode(tag, attributes = {}) {
+  const value = document.createElementNS(SVG_NS, tag);
+  Object.entries(attributes).forEach(([key, attribute]) => value.setAttribute(key, String(attribute)));
+  return value;
+}
+
+function renderOutcomeChart(container, players, i18n) {
+  const chart = node('div', '', 'statistics-bar-chart');
+  players.forEach((player) => {
+    const row = node('div', '', 'statistics-bar-row');
+    row.append(node('span', player.displayName, 'statistics-bar-label'));
+    const bars = node('div', '', 'statistics-bar-values');
+    const winBar = node('div', '', 'statistics-bar');
+    winBar.style.width = `${players.length ? (player.wins / Math.max(...players.map((item) => item.wins), 1)) * 100 : 0}%`;
+    winBar.title = i18n.t('statistics.chartWinsTooltip', { player: player.displayName, value: player.wins });
+    winBar.setAttribute('aria-label', winBar.title);
+    const rateBar = node('div', '', 'statistics-bar statistics-bar-rate');
+    rateBar.style.width = `${player.winRate * 100}%`;
+    rateBar.title = i18n.t('statistics.chartWinRateTooltip', { player: player.displayName, value: formatPercent(player.winRate, i18n.locale) });
+    rateBar.setAttribute('aria-label', rateBar.title);
+    bars.append(winBar, rateBar); row.append(bars); chart.append(row);
+  });
+  const legend = node('p', `${i18n.t('statistics.wins')} · ${i18n.t('statistics.winRate')}`, 'statistics-chart-legend');
+  container.append(chart, legend);
+}
+
+function renderLineChart(container, title, series, i18n, xLabel) {
+  if (!series.length || !series.some((item) => item.points.some((point) => point !== null))) return;
+  const width = 760; const height = 300; const left = 48; const right = 18; const top = 24; const bottom = 42;
+  const values = series.flatMap((item) => item.points).filter((value) => value !== null);
+  let min = Math.min(...values); let max = Math.max(...values);
+  if (min === max) { min -= 1; max += 1; }
+  const xCount = Math.max(...series.map((item) => item.points.length), 1);
+  const x = (index) => left + (index / Math.max(xCount - 1, 1)) * (width - left - right);
+  const y = (value) => top + ((max - value) / (max - min)) * (height - top - bottom);
+  const svg = svgNode('svg', { viewBox: `0 0 ${width} ${height}`, role: 'img', 'aria-label': title, class: 'statistics-line-svg' });
+  const zero = svgNode('line', { x1: left, x2: width - right, y1: y(0), y2: y(0), class: 'statistics-axis' }); svg.append(zero);
+  const axis = svgNode('line', { x1: left, x2: left, y1: top, y2: height - bottom, class: 'statistics-axis' }); svg.append(axis);
+  [max, min].forEach((value) => { const label = svgNode('text', { x: 4, y: y(value) + 4, class: 'statistics-axis-label' }); label.textContent = formatScore(value, i18n.locale); svg.append(label); });
+  series.forEach((item, seriesIndex) => {
+    let segment = [];
+    const flush = () => {
+      if (segment.length < 2) { segment = []; return; }
+      svg.append(svgNode('polyline', { points: segment.join(' '), class: `statistics-line statistics-line-${seriesIndex % 6}` })); segment = [];
+    };
+    item.points.forEach((value, index) => {
+      if (value === null) { flush(); return; }
+      const point = `${x(index)},${y(value)}`; segment.push(point);
+      svg.append(svgNode('circle', { cx: x(index), cy: y(value), r: 3.5, class: `statistics-point statistics-line-${seriesIndex % 6}` }));
+    });
+    flush();
+  });
+  const labels = series[0]?.labels ?? [];
+  if (labels.length) { [0, labels.length - 1].filter((value, index, all) => all.indexOf(value) === index).forEach((index) => { const label = svgNode('text', { x: x(index), y: height - 12, 'text-anchor': index ? 'end' : 'start', class: 'statistics-axis-label' }); label.textContent = labels[index]; svg.append(label); }); }
+  const legend = node('div', '', 'statistics-line-legend');
+  series.forEach((item, index) => { const label = node('span', item.name, `statistics-legend-item statistics-line-${index % 6}`); legend.append(label); });
+  const figure = node('figure', '', 'statistics-chart'); figure.append(node('figcaption', title), svg, legend);
+  if (xLabel) figure.append(node('small', xLabel, 'statistics-chart-axis-note'));
+  container.append(figure);
+}
+
+function renderAverageBars(container, title, players, distributions, i18n) {
+  const values = players.map((player) => {
+    const scores = distributions[player.key] ?? [];
+    return { ...player, average: scores.length ? scores.reduce((sum, score) => sum + score, 0) / scores.length : null };
+  }).filter((player) => player.average !== null);
+  if (!values.length) return;
+  const chart = node('div', '', 'statistics-bar-chart');
+  const max = Math.max(...values.map((player) => Math.abs(player.average)), 1);
+  values.forEach((player) => {
+    const row = node('div', '', 'statistics-bar-row'); row.append(node('span', player.displayName, 'statistics-bar-label'));
+    const track = node('div', '', 'statistics-bar-values'); const bar = node('div', '', 'statistics-bar');
+    bar.style.width = `${Math.max(2, (Math.abs(player.average) / max) * 100)}%`; bar.title = `${player.displayName}: ${formatScore(player.average, i18n.locale)}`; bar.setAttribute('aria-label', bar.title);
+    track.append(bar, node('small', formatScore(player.average, i18n.locale))); row.append(track); chart.append(row);
+  });
+  const figure = node('figure', '', 'statistics-chart'); figure.append(node('figcaption', title), chart); container.append(figure);
+}
+
+function quartiles(values) {
+  const sorted = [...values].sort((a, b) => a - b); if (!sorted.length) return null;
+  const percentile = (fraction) => { const position = (sorted.length - 1) * fraction; const lower = Math.floor(position); const upper = Math.ceil(position); return sorted[lower] + (sorted[upper] - sorted[lower]) * (position - lower); };
+  return { min: sorted[0], q1: percentile(.25), median: percentile(.5), q3: percentile(.75), max: sorted.at(-1) };
+}
+
+function renderBoxPlot(container, title, players, distributions, i18n) {
+  const boxes = players.map((player) => ({ ...player, stats: quartiles(distributions[player.key] ?? []) })).filter((player) => player.stats);
+  if (!boxes.length) return;
+  const width = 760; const rowHeight = 48; const height = Math.max(120, boxes.length * rowHeight + 44); const left = 125; const right = 18;
+  const all = boxes.flatMap((box) => Object.values(box.stats)); let min = Math.min(...all); let max = Math.max(...all); if (min === max) { min -= 1; max += 1; }
+  const x = (value) => left + ((value - min) / (max - min)) * (width - left - right);
+  const svg = svgNode('svg', { viewBox: `0 0 ${width} ${height}`, role: 'img', 'aria-label': title, class: 'statistics-line-svg statistics-box-svg' });
+  boxes.forEach((box, index) => { const y = 28 + index * rowHeight; const stats = box.stats;
+    svg.append(svgNode('text', { x: left - 8, y: y + 5, 'text-anchor': 'end', class: 'statistics-axis-label' })); svg.lastChild.textContent = box.displayName;
+    svg.append(svgNode('line', { x1: x(stats.min), x2: x(stats.max), y1: y, y2: y, class: 'statistics-box-whisker' }), svgNode('line', { x1: x(stats.min), x2: x(stats.min), y1: y - 8, y2: y + 8, class: 'statistics-box-whisker' }), svgNode('line', { x1: x(stats.max), x2: x(stats.max), y1: y - 8, y2: y + 8, class: 'statistics-box-whisker' }), svgNode('rect', { x: x(stats.q1), y: y - 11, width: Math.max(2, x(stats.q3) - x(stats.q1)), height: 22, class: 'statistics-box' }), svgNode('line', { x1: x(stats.median), x2: x(stats.median), y1: y - 11, y2: y + 11, class: 'statistics-box-median' }));
+  });
+  svg.append(svgNode('text', { x: left, y: height - 10, class: 'statistics-axis-label' })); svg.lastChild.textContent = formatScore(min, i18n.locale);
+  svg.append(svgNode('text', { x: width - right, y: height - 10, 'text-anchor': 'end', class: 'statistics-axis-label' })); svg.lastChild.textContent = formatScore(max, i18n.locale);
+  const figure = node('figure', '', 'statistics-chart'); figure.append(node('figcaption', title), svg); container.append(figure);
+}
+
+function renderHeadToHead(container, title, players, matrix, i18n) {
+  const table = node('table', '', 'statistics-leaderboard statistics-matrix'); table.append(node('caption', title));
+  const head = document.createElement('thead'); const row = document.createElement('tr'); row.append(node('th', i18n.t('statistics.player'))); players.forEach((player) => row.append(node('th', player.displayName))); head.append(row); table.append(head);
+  const body = document.createElement('tbody'); players.forEach((player) => { const tr = document.createElement('tr'); tr.append(node('th', player.displayName)); players.forEach((opponent) => tr.append(node('td', player.key === opponent.key ? '—' : String(matrix[player.key]?.[opponent.key] ?? 0)))); body.append(tr); }); table.append(body); container.append(table);
+}
+
+function renderGroupedRoundBars(container, title, players, rounds, i18n) {
+  if (!rounds.length) return;
+  const chart = node('div', '', 'statistics-round-bars'); const max = Math.max(...rounds.flatMap((round) => players.map((player) => round[player.key] ?? 0)), 1);
+  rounds.forEach((round, index) => { const group = node('div', '', 'statistics-round-group'); group.append(node('strong', `${i18n.t('session.round', { number: index + 1, scores: '' }).replace(/: $/, '')}`)); const bars = node('div', '', 'statistics-round-bars-inner'); players.forEach((player) => { const score = round[player.key]; const wrapper = node('div', '', 'statistics-round-bar-wrap'); const bar = node('div', ``, `statistics-round-bar statistics-line-${players.indexOf(player) % 6}`); bar.style.height = `${Math.max(2, (Math.abs(score ?? 0) / max) * 100)}%`; bar.title = `${player.displayName}: ${formatScore(score, i18n.locale)}`; bar.setAttribute('aria-label', bar.title); wrapper.append(bar, node('small', player.displayName)); bars.append(wrapper); }); group.append(bars); chart.append(group); });
+  const figure = node('figure', '', 'statistics-chart'); figure.append(node('figcaption', title), chart); container.append(figure);
+}
+
+function renderRoundLeaders(container, title, players, rounds, i18n, ranking = 'highest') {
+  if (!rounds.length) return;
+  const table = node('table', '', 'statistics-leaderboard'); table.append(node('caption', title)); const body = document.createElement('tbody');
+  rounds.forEach((round, index) => { const scores = players.map((player) => ({ name: player.displayName, score: round[player.key] })).filter((item) => Number.isFinite(item.score)); const best = scores.length ? (ranking === 'lowest' ? Math.min(...scores.map((item) => item.score)) : Math.max(...scores.map((item) => item.score))) : null; const leaders = scores.filter((item) => item.score === best).map((item) => item.name).join(', ') || '—'; const row = document.createElement('tr'); [index + 1, leaders, best === null ? '—' : formatScore(best, i18n.locale)].forEach((value) => row.append(node('td', String(value)))); body.append(row); }); table.append(body); container.append(table);
+}
+
+function renderNormalCharts(container, sessions, statistics, games, i18n) {
+  if (!statistics.games.length) return;
+
+  const label = node('label', i18n.t('statistics.chooseGame')); label.htmlFor = 'statistics-chart-game-select';
+  const select = document.createElement('select'); select.id = 'statistics-chart-game-select';
+  statistics.games.forEach((game) => { const option = document.createElement('option'); option.value = game.gameId; option.textContent = currentGameName(game.gameId, game.gameNameAtPlay, games, i18n.locale); select.append(option); });
+  const trendContent = node('div', '', 'statistics-trend-content');
+  const render = () => {
+    trendContent.replaceChildren();
+    const chartData = calculateGameAnalytics(sessions, select.value, i18n.locale);
+    const engine = sessions.find((session) => String(session.gameId ?? session.gameNameAtPlay ?? '') === select.value)?.scoring?.engineId;
+    if (engine === 'winner-only') {
+      renderLineChart(trendContent, i18n.t('statistics.chartWinsOverTime'), chartData.players.map((player) => ({ name: player.displayName, labels: chartData.sessions.map((item) => item.label), points: chartData.cumulativeWins[player.key] })), i18n, i18n.t('statistics.chartSessionAxis'));
+      renderHeadToHead(trendContent, i18n.t('statistics.chartHeadToHead'), chartData.players, chartData.winnerMatrix, i18n);
+    } else if (engine === 'round-sum') {
+      const latestRoundSession = chartData.latestRoundSession;
+      if (latestRoundSession) {
+        renderLineChart(trendContent, i18n.t('statistics.chartScoreProgression'), chartData.players.map((player) => { let total = 0; return { name: player.displayName, labels: latestRoundSession.rounds.map((_, index) => String(index + 1)), points: latestRoundSession.rounds.map((round) => { const score = round[player.key]; if (!Number.isFinite(score)) return null; total += score; return total; }) }; }), i18n, i18n.t('statistics.chartRoundAxis'));
+        renderGroupedRoundBars(trendContent, i18n.t('statistics.chartScorePerRound'), chartData.players, chartData.roundScores, i18n);
+        renderRoundLeaders(trendContent, i18n.t('statistics.chartLeaderByRound'), chartData.players, chartData.roundScores, i18n, latestRoundSession.ranking);
+      } else trendContent.append(node('p', i18n.t('statistics.noNumericScores')));
+    } else {
+      const numericSessions = chartData.sessions.filter((item) => Object.keys(item.scores).length);
+      renderBoxPlot(trendContent, i18n.t('statistics.chartScoreDistribution'), chartData.players, chartData.distributions, i18n);
+      renderAverageBars(trendContent, i18n.t('statistics.chartAverageScore'), chartData.players, chartData.distributions, i18n);
+      if (numericSessions.length) renderLineChart(trendContent, i18n.t('statistics.chartScoresBySession'), chartData.players.map((player) => ({ name: player.displayName, labels: numericSessions.map((item) => item.label), points: numericSessions.map((item) => item.scores[player.key] ?? null) })), i18n, i18n.t('statistics.chartSessionAxis'));
+      else trendContent.append(node('p', i18n.t('statistics.noNumericScores')));
+    }
+  };
+  select.addEventListener('change', render);
+  container.append(label, select, trendContent); render();
+}
+
 /** Render the Statistics tab using the already-loaded session history. */
 export function renderStatistics(container, sessions, games, i18n) {
   container.replaceChildren();
   const statistics = calculateStatistics(sessions);
-  if (!statistics.players.length) {
+  const marioSessions = sessions.filter((session) => session?.scoring?.engineId === 'mario-kart-8');
+  if (!statistics.players.length && !marioSessions.length) {
     container.append(node('p', i18n.t('statistics.empty')));
     return;
   }
@@ -341,12 +566,17 @@ export function renderStatistics(container, sessions, games, i18n) {
     tabs.forEach((tab, key) => { const selected = key === id; tab.classList.toggle('is-active', selected); tab.setAttribute('aria-selected', String(selected)); tab.tabIndex = selected ? 0 : -1; });
   };
 
-  const overviewPanel = addTab('overview', i18n.t('statistics.tabOverview'));
-  const playersPanel = addTab('players', i18n.t('statistics.tabPlayers'));
-  const gamesPanel = addTab('games', i18n.t('statistics.tabGames'));
-  const marioSessions = sessions.filter((session) => session?.scoring?.engineId === 'mario-kart-8');
+  let overviewPanel; let playersPanel; let gamesPanel; let chartsPanel;
+  if (statistics.players.length) {
+    overviewPanel = addTab('overview', i18n.t('statistics.tabOverview'));
+    playersPanel = addTab('players', i18n.t('statistics.tabPlayers'));
+    gamesPanel = addTab('games', i18n.t('statistics.tabGames'));
+    chartsPanel = addTab('charts', i18n.t('statistics.tabCharts'));
+    renderNormalCharts(chartsPanel, sessions, statistics, games, i18n);
+  }
   let marioPanel;
   if (marioSessions.length) { marioPanel = addTab('mario-kart', i18n.t('statistics.tabMarioKart')); renderMarioKartDashboard(marioPanel, marioSessions, i18n); }
+  if (statistics.players.length) {
   const overview = node('div', '', 'statistics-overview');
   for (const [label, value] of [
     [i18n.t('statistics.sessions'), statistics.sessionCount],
@@ -380,8 +610,10 @@ export function renderStatistics(container, sessions, games, i18n) {
   gameSelect.addEventListener('change', () => showGame(gameSelect.value));
   gamesPanel.append(gameLabel, gameSelect, gameResults);
   showGame(gameSelect.value);
+  }
 
-  container.append(tabList, overviewPanel, playersPanel, gamesPanel);
+  container.append(tabList);
+  if (overviewPanel) container.append(overviewPanel, playersPanel, gamesPanel, chartsPanel);
   if (marioPanel) container.append(marioPanel);
-  selectTab('overview');
+  selectTab(statistics.players.length ? 'overview' : 'mario-kart');
 }

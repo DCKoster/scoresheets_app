@@ -13,6 +13,23 @@ function selectOptions(select, values, label = (value) => value) {
   values.forEach((value) => { const option = element('option', label(value)); option.value = value; select.append(option); });
 }
 
+function trackComboBox(draft, i18n, setState) {
+  const combo = element('div', undefined, 'mario-track-combobox');
+  const track = element('input');
+  track.type = 'search';
+  track.setAttribute('list', 'mario-track-options');
+  track.setAttribute('autocomplete', 'off');
+  track.placeholder = i18n.t('marioKart.chooseTrack');
+  track.value = draft.track;
+  track.addEventListener('input', () => { draft.track = track.value; setState(); });
+
+  const options = element('datalist');
+  options.id = 'mario-track-options';
+  selectOptions(options, MARIO_KART_TRACKS);
+  combo.append(track, options);
+  return combo;
+}
+
 function draftFromRace(race, participants) {
   return {
     track: race?.track ?? '',
@@ -139,10 +156,8 @@ export function renderMarioKartEditor(panel, session, engine, reportError, i18n,
   raceForm.append(element('p', i18n.t('marioKart.raceProgress', { current: session.entries.races.length, target: session.targetRaces })));
 
   const controls = element('div', undefined, 'mario-race-controls');
-  const trackLabel = element('label', i18n.t('marioKart.track')); const track = document.createElement('select');
-  const noTrack = element('option', i18n.t('marioKart.chooseTrack')); noTrack.value = ''; track.append(noTrack);
-  selectOptions(track, MARIO_KART_TRACKS); track.value = draft.track;
-  track.addEventListener('change', () => { draft.track = track.value; setState(); }); trackLabel.append(track);
+  const trackLabel = element('label', i18n.t('marioKart.track')); const track = trackComboBox(draft, i18n, setState);
+  trackLabel.append(track);
   const ccLabel = element('label', i18n.t('marioKart.cc')); const cc = document.createElement('select');
   selectOptions(cc, MARIO_KART_CC_OPTIONS, (value) => i18n.t(`marioKart.cc.${value}`)); cc.value = draft.cc;
   cc.disabled = rulesLocked; cc.addEventListener('change', () => { draft.cc = cc.value; setState(); }); ccLabel.append(cc);

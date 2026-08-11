@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { calculateMarioKartStatistics, calculateStatistics, normalizePlayerName } from '../web_app/src/ui/statistics.js';
+import { calculateChartData, calculateMarioKartStatistics, calculateStatistics, normalizePlayerName } from '../web_app/src/ui/statistics.js';
 import { groupSessionsByGame } from '../web_app/src/ui/history.js';
 
 const session = (id, ranking, scores, gameId = 'game') => ({
@@ -120,4 +120,40 @@ test('Mario Kart statistics distinguish race wins from session wins', () => {
     ['A', 2, 1, 0.5, 1, 1, 1],
     ['B', 2, 1, 0.5, 1, 1, 1],
   ]);
+});
+
+test('normal statistics and chart data exclude Mario Kart sessions', () => {
+  const normal = session('normal', 'highest', { A: 10, B: 2 }, 'scores');
+  const mario = { ...normal, id: 'mario', gameId: 'mario-kart-8', scoring: { engineId: 'mario-kart-8', ranking: 'highest' }, entries: { races: [] } };
+  const result = calculateStatistics([normal, mario]);
+  assert.equal(result.sessionCount, 1);
+  assert.equal(result.gameCount, 1);
+  assert.deepEqual(result.players.map(({ displayName }) => displayName), ['A', 'B']);
+  assert.equal(calculateChartData([normal, mario], 'scores').sessions.length, 1);
+  assert.equal(calculateChartData([normal, mario], 'mario-kart-8').sessions.length, 0);
+});
+
+test('chart data calculates chronological final scores and cumulative category rounds', () => {
+  const rounds = {
+    id: 'rounds', gameId: 'rounds', gameNameAtPlay: 'Rounds', createdAt: '2026-01-02',
+    scoring: { engineId: 'round-sum', ranking: 'highest' },
+    participants: [{ id: 'a', displayName: 'A' }, { id: 'b', displayName: 'B' }],
+    entries: { rounds: [
+      { id: 'r1', scores: { a: { Red: 3, Blue: -1 }, b: { Red: 2, Blue: 2 } } },
+      { id: 'r2', scores: { a: { Red: 4, Blue: 1 }, b: { Red: -2, Blue: 3 } } },
+    ] },
+    totals: { a: 7, b: 5 },
+  };
+  const earlier = { ...rounds, id: 'earlier', createdAt: '2026-01-01', totals: { a: 4, b: 1 }, entries: { rounds: [{ id: 'r1', scores: { a: 4, b: 1 } }] } };
+  const result = calculateChartData([rounds, earlier], 'rounds');
+  assert.deepEqual(result.sessions.map(({ id }) => id), ['earlier', 'rounds']);
+  assert.deepEqual(result.sessions[1].scores, { a: 7, b: 5 });
+  assert.deepEqual(result.sessions[1].rounds, [{ a: 2, b: 4 }, { a: 5, b: 1 }]);
+});
+
+test('winner-only chart data has participants but no numeric score series', () => {
+  const winner = { id: 'winner', gameId: 'quick', gameNameAtPlay: 'Quick', createdAt: '2026-01-01', scoring: { engineId: 'winner-only', ranking: 'selected' }, participants: [{ id: 'a', displayName: 'A' }, { id: 'b', displayName: 'B' }], entries: { winnerId: 'a' }, totals: {} };
+  const result = calculateChartData([winner], 'quick');
+  assert.deepEqual(result.players.map(({ displayName }) => displayName), ['A', 'B']);
+  assert.deepEqual(result.sessions[0].scores, {});
 });

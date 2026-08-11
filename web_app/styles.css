@@ -162,6 +162,8 @@ details { margin: 8px 0; }
 .mario-race-controls { display: grid; gap: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .mario-race-controls label, .mario-placement-row, .mario-roster-row { align-items: center; display: flex; gap: 8px; }
 .mario-race-controls select, .mario-placement-row select { margin: 0; }
+.mario-track-combobox { flex: 1; min-width: 0; }
+.mario-track-combobox input { margin: 0; width: 100%; }
 .mario-item-grid { display: grid; gap: 8px; grid-template-columns: repeat(6, minmax(0, 1fr)); }
 .mario-item-button { min-height: 56px; margin: 0; transition: background-color .15s ease, box-shadow .15s ease, color .15s ease, transform .15s ease; }
 .mario-item-button:not(.is-selected) { background: #1f2937; border: 1px solid #111827; color: #94a3b8; box-shadow: inset 0 3px 9px rgb(0 0 0 / 55%), 0 2px 4px rgb(0 0 0 / 35%); }
@@ -224,6 +226,54 @@ details { margin: 8px 0; }
 .statistics-detail-row td { padding-top: 0; }
 .statistics-detail-row details { margin: 8px 0; }
 .statistics-game-list { margin: 8px 0; padding-left: 20px; }
+.statistics-bar-chart { display: grid; gap: 10px; margin: 12px 0 4px; }
+.statistics-bar-row { align-items: center; display: grid; gap: 10px; grid-template-columns: minmax(80px, 140px) 1fr; }
+.statistics-bar-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.statistics-bar-values { display: grid; gap: 4px; }
+.statistics-bar { background: var(--primary); border-radius: 999px; height: 12px; min-width: 3px; }
+.statistics-bar-rate { background: var(--accent); }
+.statistics-chart-legend, .statistics-chart-note, .statistics-chart-axis-note { color: var(--muted); font-size: .85rem; }
+.statistics-chart { margin: 24px 0; }
+.statistics-chart figcaption { font-size: 1.1rem; font-weight: 700; margin-bottom: 8px; }
+.statistics-line-svg { background: #fbfdff; border: 1px solid var(--border); border-radius: 8px; display: block; max-width: 100%; width: 100%; }
+.statistics-axis { stroke: var(--border); stroke-width: 1; }
+.statistics-axis-label { fill: var(--muted); font-size: 12px; }
+.statistics-line { fill: none; stroke-width: 3; }
+.statistics-point { stroke: #fff; stroke-width: 1.5; }
+.statistics-line-0 { color: #1f6feb; stroke: #1f6feb; }
+.statistics-line-1 { color: #d97706; stroke: #d97706; }
+.statistics-line-2 { color: #059669; stroke: #059669; }
+.statistics-line-3 { color: #db2777; stroke: #db2777; }
+.statistics-line-4 { color: #7c3aed; stroke: #7c3aed; }
+.statistics-line-5 { color: #0891b2; stroke: #0891b2; }
+.statistics-point.statistics-line-0 { fill: #1f6feb; }
+.statistics-point.statistics-line-1 { fill: #d97706; }
+.statistics-point.statistics-line-2 { fill: #059669; }
+.statistics-point.statistics-line-3 { fill: #db2777; }
+.statistics-point.statistics-line-4 { fill: #7c3aed; }
+.statistics-point.statistics-line-5 { fill: #0891b2; }
+.statistics-line-legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px; }
+.statistics-legend-item { color: var(--text); font-size: .85rem; }
+.statistics-line-legend .statistics-line-0 { color: #1f6feb; }
+.statistics-line-legend .statistics-line-1 { color: #d97706; }
+.statistics-line-legend .statistics-line-2 { color: #059669; }
+.statistics-line-legend .statistics-line-3 { color: #db2777; }
+.statistics-line-legend .statistics-line-4 { color: #7c3aed; }
+.statistics-line-legend .statistics-line-5 { color: #0891b2; }
+.statistics-legend-item::before { background: currentColor; border-radius: 50%; content: ''; display: inline-block; height: 9px; margin-right: 5px; width: 9px; }
+.statistics-trend-content { margin-top: 10px; }
+.statistics-box-whisker, .statistics-box-median { stroke: var(--text); stroke-width: 2; }
+.statistics-box { fill: #bfdbfe; stroke: var(--primary); stroke-width: 2; }
+.statistics-matrix { margin-top: 24px; overflow: hidden; }
+.statistics-matrix th, .statistics-matrix td { text-align: center; }
+.statistics-matrix th:first-child { text-align: left; }
+.statistics-round-bars { display: flex; gap: 12px; overflow-x: auto; padding: 12px 4px 4px; }
+.statistics-round-group { min-width: 96px; text-align: center; }
+.statistics-round-group strong { display: block; font-size: .85rem; }
+.statistics-round-bars-inner { align-items: end; border-bottom: 1px solid var(--border); display: flex; gap: 4px; height: 150px; justify-content: center; margin-top: 6px; padding: 0 4px; }
+.statistics-round-bar-wrap { align-items: center; display: flex; flex-direction: column; height: 100%; justify-content: end; min-width: 22px; }
+.statistics-round-bar { border-radius: 4px 4px 0 0; min-height: 2px; width: 18px; }
+.statistics-round-bar-wrap small { color: var(--muted); font-size: .65rem; max-width: 42px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 @media (max-width: 600px) {
   .game-grid { grid-template-columns: 1fr; }
