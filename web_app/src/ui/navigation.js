@@ -4,7 +4,9 @@ export function showView(nextView, views, tabButtons) {
   });
 
   tabButtons.forEach((button) => {
-    button.classList.toggle('is-active', button.dataset.view === nextView);
+    const isActive = button.dataset.view === nextView;
+    button.classList.toggle('is-active', isActive);
+    button.setAttribute('aria-current', isActive ? 'page' : 'false');
   });
 }
 

@@ -5,6 +5,7 @@ const messages = {
   en: {
     'app.title': 'Scoresheets Web',
     'app.subtitle': 'Simple Scoresheets',
+    'family.allProjects': 'All projects',
     'language.label': 'Language',
     'language.switchTo': 'Switch to Dutch',
     'nav.label': 'Main views',
@@ -170,6 +171,7 @@ const messages = {
   nl: {
     'app.title': 'Scorebladen',
     'app.subtitle': 'Eenvoudige scorebladen',
+    'family.allProjects': 'Alle projecten',
     'language.label': 'Taal',
     'language.switchTo': 'Overschakelen naar Engels',
     'nav.label': 'Hoofdschermen',

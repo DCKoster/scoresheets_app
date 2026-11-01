@@ -1,176 +1,197 @@
 :root {
-  --bg: #f4f2e8;
-  --card: #ffffff;
-  --text: #16213e;
-  --muted: #4a5b7a;
-  --border: #d7dcea;
+  color-scheme: light;
+  --bg: #eee8d7;
+  --card: #fffdf5;
+  --card-alt: #f7f2e4;
+  --text: #18211e;
+  --muted: #52605a;
+  --border: #cfc7b2;
+  --border-strong: #a99f87;
   --primary: #1f6feb;
-  --ok: #147a4b;
+  --primary-dark: #1557b7;
+  --primary-soft: #e5eefc;
+  --family: #8f9d6a;
+  --family-soft: #e7eadb;
+  --ok: #187047;
+  --danger: #b4233f;
+  --secondary: #53645e;
+  --focus: #0b5bd3;
+  --shadow: 0 2px 0 rgb(85 73 46 / 13%), 0 10px 30px rgb(65 56 38 / 9%);
 }
 
-* {
-  box-sizing: border-box;
-}
-
+* { box-sizing: border-box; }
+html { min-height: 100%; }
 body {
+  min-height: 100%;
   margin: 0;
-  font-family: "Segoe UI", Tahoma, sans-serif;
-  background: radial-gradient(circle at 20% 0%, #fff6d8, var(--bg) 45%);
+  font-family: "Segoe UI", Tahoma, Arial, sans-serif;
+  line-height: 1.5;
+  background-color: var(--bg);
+  background-image:
+    radial-gradient(circle at 12% 4%, rgb(255 253 245 / 90%), transparent 34rem),
+    repeating-linear-gradient(7deg, rgb(96 82 51 / 2%) 0 1px, transparent 1px 8px);
   color: var(--text);
 }
-
-.app {
-  max-width: 780px;
-  margin: 0 auto;
-  padding: 20px;
-}
-
-h1 {
-  margin: 0;
-  font-size: 2rem;
-}
-
-.app-header {
+.app { width: min(100%, 960px); margin: 0 auto; padding: 24px clamp(16px, 4vw, 40px) 48px; }
+h1, h2, h3 { color: var(--text); line-height: 1.2; }
+h1 { margin: 0; font-size: clamp(2rem, 5vw, 2.75rem); letter-spacing: -.035em; }
+h2 { margin-top: 0; }
+.app-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.subtitle { margin: 5px 0 0; color: var(--muted); font-weight: 600; }
+.family-marker {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 12px;
+  min-height: 38px;
+  margin-top: 14px;
+  padding: 7px 10px 7px 13px;
+  border: 1px solid #7e8c5b;
+  border-radius: 9px;
+  background: var(--family);
+  color: var(--text);
+  box-shadow: inset 0 1px rgb(255 255 255 / 24%), 0 2px 0 rgb(74 84 51 / 16%);
+  font-size: .84rem;
+  font-weight: 800;
+  letter-spacing: .025em;
 }
-
+.family-name span { padding: 0 .25em; color: #33402f; }
+.family-marker a { border-radius: 5px; color: var(--text); font-weight: 700; text-underline-offset: 3px; }
+.family-marker a:hover { text-decoration-thickness: 2px; }
 .language-toggle {
   width: auto;
   min-width: 76px;
   margin-top: 0;
   white-space: nowrap;
-  background: #e3ebfb;
+  background: var(--card-alt);
   color: var(--text);
-  border: 1px solid #c6d5f6;
-  font-weight: 700;
+  border: 1px solid var(--border-strong);
+  font-weight: 800;
 }
-
-.subtitle {
-  margin-top: 6px;
-  color: var(--muted);
-}
-
-.tabs {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
-  margin-top: 14px;
-}
-
+.tabs { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin-top: 14px; }
 .tab {
   margin-top: 0;
-  background: #e3ebfb;
+  background: var(--card-alt);
   color: var(--text);
-  border: 1px solid #c6d5f6;
-  font-weight: 600;
+  border: 1px solid var(--border);
+  box-shadow: 0 2px 0 rgb(85 73 46 / 12%);
+  font-size: .94rem;
+  font-weight: 700;
 }
-
-.tab.is-active {
-  background: var(--primary);
-  color: #fff;
-  border-color: transparent;
-}
-
-.view {
-  margin-top: 12px;
-}
-
+.tab:hover { background: #eee8d8; border-color: var(--border-strong); }
+.tab.is-active { background: var(--primary); color: #fff; border-color: var(--primary-dark); box-shadow: inset 0 -2px rgb(0 0 0 / 12%); }
+.view { margin-top: 12px; }
 .card {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 16px;
+  position: relative;
   margin-top: 14px;
-}
-
-label {
-  display: block;
-  font-weight: 600;
-  margin-top: 10px;
-  margin-bottom: 6px;
-}
-
-input,
-select,
-button {
-  width: 100%;
-  border-radius: 8px;
+  padding: clamp(16px, 3vw, 24px);
+  overflow: hidden;
+  background-color: var(--card);
+  background-image: repeating-linear-gradient(0deg, transparent 0 31px, rgb(84 105 95 / 4%) 31px 32px);
   border: 1px solid var(--border);
-  font-size: 1rem;
-  padding: 10px 12px;
+  border-radius: 13px;
+  box-shadow: var(--shadow);
 }
-
+.card::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 8px;
+  width: 2px;
+  background: rgb(143 157 106 / 38%);
+  content: "";
+}
+label { display: block; margin: 12px 0 6px; font-weight: 700; }
+input, select, button {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 1rem;
+  padding: 9px 12px;
+}
+input, select { background: #fffef9; color: var(--text); box-shadow: inset 0 1px 2px rgb(44 39 28 / 7%); }
+input:hover, select:hover { border-color: #7b897f; }
 button {
   margin-top: 12px;
+  border-color: var(--primary-dark);
   background: var(--primary);
   color: #fff;
-  border: none;
+  box-shadow: inset 0 -2px rgb(0 0 0 / 13%), 0 2px 0 rgb(30 75 139 / 14%);
   cursor: pointer;
+  font-weight: 700;
 }
-
-button.accent {
-  background: var(--ok);
+button:hover { background: var(--primary-dark); }
+button:active { box-shadow: inset 0 2px 3px rgb(0 0 0 / 18%); transform: translateY(1px); }
+button.accent { background: var(--ok); border-color: #105334; }
+button.accent:hover { background: #105d3a; }
+button.delete { background: var(--danger); border-color: #861a30; }
+button.delete:hover { background: #8f1c33; }
+button.secondary { background: var(--secondary); border-color: #3b4b46; }
+button.secondary:hover { background: #3f504a; }
+button:disabled, input:disabled, select:disabled {
+  border-color: #c9c6bc;
+  background: #e5e2d9;
+  color: #686c68;
+  box-shadow: none;
+  cursor: not-allowed;
+  opacity: 1;
 }
-
-button.delete {
-  background: #be123c;
-}
-
-button.secondary { background: var(--muted); }
+:where(a, button, input, select, summary):focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
 .button-row { display: flex; gap: 8px; }
 .button-row button { flex: 1; }
 #cancel-session { flex: 0 0 auto; width: auto; }
-.error { background: #fee2e2; border: 1px solid #ef4444; border-radius: 8px; color: #991b1b; padding: 12px; }
+.error { padding: 12px; border: 1px solid #d14159; border-radius: 8px; background: #fbe4e7; color: #7d1428; font-weight: 600; }
 details { margin: 8px 0; }
-
-@media (max-width: 600px) { .tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-
-.inline-grid {
-  display: grid;
-  grid-template-columns: 1fr 120px;
-  gap: 8px;
-  align-items: center;
-  margin-top: 8px;
-}
-
+summary { border-radius: 4px; }
+.inline-grid { display: grid; grid-template-columns: 1fr 120px; gap: 8px; align-items: center; margin-top: 8px; }
 .winner-picker { border: 0; margin: 12px 0; padding: 0; }
-.winner-picker legend { font-weight: 700; margin-bottom: 6px; }
-.winner-option { align-items: center; display: flex; font-weight: 400; gap: 8px; margin: 8px 0; }
-.winner-option input { height: 18px; width: 18px; }
+.winner-picker legend { margin-bottom: 6px; font-weight: 700; }
+.winner-option { display: flex; align-items: center; gap: 8px; margin: 8px 0; font-weight: 400; }
+.winner-option input { width: 20px; height: 20px; min-height: 0; accent-color: var(--family); }
 .add-game { width: auto; }
 .game-filters { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; margin-top: 16px; }
 .game-filters > * { margin-top: 0; }
 .game-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
-.game-card { border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 2px 7px rgb(22 33 62 / 8%); display: flex; flex-direction: column; gap: 12px; min-height: 154px; padding: 14px; transition: box-shadow .15s ease, transform .15s ease; }
-.game-card:hover { box-shadow: 0 8px 18px rgb(22 33 62 / 15%); transform: translateY(-2px); }
-.game-card:focus { outline: 3px solid #8abbff; outline-offset: 2px; }
+.game-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 154px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgb(255 254 249 / 82%);
+  box-shadow: 0 2px 0 rgb(22 33 30 / 8%);
+  transition: box-shadow .15s ease, transform .15s ease;
+}
+.game-card:hover { box-shadow: 0 7px 16px rgb(22 33 30 / 13%); transform: translateY(-2px); }
+.game-card:focus { outline: 3px solid var(--focus); outline-offset: 2px; }
 .game-card h3 { margin: 0; }
 .game-tags { display: flex; flex-wrap: wrap; gap: 6px; }
-.game-tag { border-radius: 999px; font-size: .8rem; line-height: 1.25; padding: 4px 8px; }
-.competitive-tag { background: #e9efff; color: #174a9d; }
-.cooperative-tag { background: #e4f7ed; color: #12633d; }
-.scoring-tag, .builtin-tag { background: #f6f1e3; color: #65562d; }
+.game-tag { border: 1px solid transparent; border-radius: 999px; font-size: .8rem; line-height: 1.25; padding: 4px 8px; font-weight: 650; }
+.competitive-tag { background: var(--primary-soft); color: #174a9d; }
+.cooperative-tag { background: #dff2e7; color: #105c39; }
+.scoring-tag, .builtin-tag { background: var(--family-soft); color: #39452d; border-color: #c5ccb1; }
 .game-actions { display: flex; gap: 6px; margin-top: auto; }
-.game-action { flex: 0 0 auto; font-size: 1.1rem; height: 40px; margin: 0; padding: 6px; width: 40px; }
+.game-action { flex: 0 0 auto; width: 44px; height: 44px; margin: 0; padding: 6px; font-size: 1.1rem; }
 .score-category-row { display: flex; gap: 8px; margin-top: 8px; }
 .score-category-row input { margin: 0; }
-.score-category-row button { flex: 0 0 42px; margin: 0; }
+.score-category-row button { flex: 0 0 44px; margin: 0; }
 .mario-race-form { display: grid; gap: 14px; }
-.mario-race-controls { display: grid; gap: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.mario-race-controls label, .mario-placement-row, .mario-roster-row { align-items: center; display: flex; gap: 8px; }
+.mario-race-controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.mario-race-controls label, .mario-placement-row, .mario-roster-row { display: flex; align-items: center; gap: 8px; }
 .mario-race-controls select, .mario-placement-row select { margin: 0; }
 .mario-track-combobox { flex: 1; min-width: 0; }
-.mario-track-combobox input { margin: 0; width: 100%; }
-.mario-item-grid { display: grid; gap: 8px; grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.mario-track-combobox input { width: 100%; margin: 0; }
+.mario-item-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
 .mario-item-button { min-height: 56px; margin: 0; transition: background-color .15s ease, box-shadow .15s ease, color .15s ease, transform .15s ease; }
-.mario-item-button:not(.is-selected) { background: #1f2937; border: 1px solid #111827; color: #94a3b8; box-shadow: inset 0 3px 9px rgb(0 0 0 / 55%), 0 2px 4px rgb(0 0 0 / 35%); }
-.mario-item-button:not(.is-selected):hover { background: #273449; color: #cbd5e1; }
-.mario-item-button.is-selected { background: #facc15; border: 1px solid #eab308; color: #422006; filter: none; box-shadow: 0 0 0 3px #fde68a, 0 4px 10px rgb(234 179 8 / 50%); transform: translateY(-1px); }
-.mario-item-button.is-selected:hover { background: #fde047; }
-.mario-item-button:disabled { opacity: 1; }
+.mario-item-button:not(.is-selected) { border-color: #313d38; background: #33403b; color: #f0f2ed; box-shadow: inset 0 3px 7px rgb(0 0 0 / 32%); }
+.mario-item-button:not(.is-selected):hover { background: #26332e; color: #fff; }
+.mario-item-button.is-selected { border-color: #71804e; background: var(--family); color: var(--text); box-shadow: 0 0 0 3px #dce1ca, 0 3px 7px rgb(74 84 51 / 30%); transform: translateY(-1px); }
+.mario-item-button.is-selected:hover { background: #9fab7f; }
+.mario-item-button:disabled:not(.is-selected) { border-color: #c9c6bc; background: #e5e2d9; color: #686c68; box-shadow: none; }
 .mario-locked-details { padding: 4px 0; }
 .mario-locked-details summary { cursor: pointer; font-weight: 700; }
 .mario-roster { display: grid; gap: 8px; }
@@ -179,117 +200,133 @@ details { margin: 8px 0; }
 .mario-add-player input { margin: 0; }
 .mario-placements { display: grid; gap: 8px; }
 .mario-placement-row { align-items: flex-start; flex-direction: column; }
-.mario-placement-buttons { display: grid; gap: 5px; grid-template-columns: repeat(12, minmax(0, 1fr)); width: 100%; }
-.mario-place-button { background: #1f2937; border: 1px solid #111827; color: #cbd5e1; margin: 0; padding: 7px 3px; }
-.mario-place-button:disabled { background: #d1d5db; border-color: #9ca3af; color: #6b7280; cursor: not-allowed; opacity: 1; }
-.mario-place-button.is-selected { background: var(--primary); border-color: var(--primary); color: #fff; box-shadow: 0 0 0 2px #8abbff; }
-.statistics-filters { display: grid; gap: 8px; grid-template-columns: repeat(4, minmax(0, 1fr)); margin-bottom: 16px; }
+.mario-placement-buttons { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 5px; width: 100%; }
+.mario-place-button { min-height: 38px; margin: 0; padding: 6px 3px; border-color: #313d38; background: #33403b; color: #fff; }
+.mario-place-button:disabled { border-color: #c9c6bc; background: #e5e2d9; color: #686c68; }
+.mario-place-button.is-selected { border-color: var(--primary-dark); background: var(--primary); color: #fff; box-shadow: 0 0 0 2px #a8caff; }
+.statistics-filters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-bottom: 16px; }
 .statistics-filters label { color: var(--muted); font-size: .9rem; }
 .statistics-filters select { margin-top: 4px; }
 .mario-win-chart { display: grid; gap: 8px; margin-bottom: 18px; }
-.mario-chart-row { align-items: center; display: grid; gap: 8px; grid-template-columns: minmax(80px, 140px) 1fr; }
-.mario-chart-bar { background: var(--primary); border-radius: 999px; height: 18px; min-width: 4px; }
-.category-input-grid { display: grid; gap: 6px; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); }
-.visually-hidden { height: 1px; margin: -1px; overflow: hidden; position: absolute; width: 1px; clip: rect(0 0 0 0); }
-
-.list-item {
-  border-top: 1px solid var(--border);
-  padding-top: 10px;
-  margin-top: 10px;
-}
-
+.mario-chart-row { display: grid; grid-template-columns: minmax(80px, 140px) 1fr; align-items: center; gap: 8px; }
+.mario-chart-bar { min-width: 4px; height: 18px; border-radius: 999px; background: var(--primary); }
+.category-input-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 6px; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); }
+.list-item { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border-strong); }
 .history-group-toggle { width: auto; }
 .history-controls { display: flex; flex-wrap: wrap; gap: 8px; }
-.history-controls > * { margin-top: 0; width: auto; }
-.history-import { align-items: center; background: var(--muted); border-radius: 8px; color: #fff; cursor: pointer; display: flex; font-size: 1rem; font-weight: 400; padding: 10px 12px; }
-.history-game-group { border-top: 1px solid var(--border); margin-top: 10px; padding-top: 10px; }
+.history-controls > * { width: auto; margin-top: 0; }
+.history-import { display: flex; align-items: center; min-height: 44px; margin: 0; padding: 9px 12px; border: 1px solid #3b4b46; border-radius: 8px; background: var(--secondary); color: #fff; cursor: pointer; font-weight: 700; }
+.history-game-group { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border-strong); }
 .history-game-group summary { cursor: pointer; font-weight: 700; }
-.history-session-heading { align-items: center; display: flex; gap: 8px; justify-content: space-between; }
+.history-session-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .history-actions { display: flex; gap: 4px; }
-.history-delete, .history-edit, .history-export-session { flex: 0 0 auto; font-size: 1rem; height: 32px; margin: 0; padding: 4px; width: 32px; }
-.round-row { align-items: center; display: flex; gap: 8px; justify-content: space-between; margin: 6px 0; }
-.round-edit { flex: 0 0 auto; margin: 0; padding: 6px 10px; width: auto; }
-
+.history-delete, .history-edit, .history-export-session { flex: 0 0 auto; width: 38px; height: 38px; min-height: 38px; margin: 0; padding: 4px; font-size: 1rem; }
+.round-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 6px 0; }
+.round-edit { flex: 0 0 auto; width: auto; margin: 0; padding: 6px 10px; }
 .statistics-overview { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 12px 0 16px; }
 .statistics-tabs { display: flex; gap: 8px; margin: 12px 0; }
-.statistics-tab { background: #e3ebfb; border: 1px solid #c6d5f6; color: var(--text); font-weight: 600; margin: 0; }
-.statistics-tab.is-active { background: var(--primary); border-color: var(--primary); color: #fff; }
+.statistics-tab { margin: 0; border-color: var(--border); background: var(--card-alt); color: var(--text); font-weight: 700; }
+.statistics-tab:hover { background: #eee8d8; }
+.statistics-tab.is-active { border-color: #71804e; background: var(--family); color: var(--text); box-shadow: inset 0 -2px rgb(65 75 43 / 18%); }
 .statistics-panel { margin-top: 12px; }
-.statistics-overview-item { background: #f1f5ff; border: 1px solid #dbe5fb; border-radius: 8px; padding: 10px; text-align: center; }
-.statistics-overview-item strong { display: block; font-size: 1.3rem; }
-.statistics-overview-item span { color: var(--muted); font-size: .85rem; }
-.statistics-leaderboard { border-collapse: collapse; width: 100%; }
-.statistics-leaderboard caption { caption-side: top; font-size: 1.1rem; font-weight: 700; padding-bottom: 8px; text-align: left; }
-.statistics-leaderboard th, .statistics-leaderboard td { border-bottom: 1px solid var(--border); padding: 10px 8px; text-align: left; }
+.statistics-overview-item { padding: 10px; border: 1px solid #c6cdb4; border-radius: 8px; background: var(--family-soft); text-align: center; }
+.statistics-overview-item strong { display: block; font-size: 1.35rem; font-variant-numeric: tabular-nums; }
+.statistics-overview-item span { color: #465342; font-size: .85rem; }
+.statistics-leaderboard { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.statistics-leaderboard caption { padding-bottom: 8px; caption-side: top; font-size: 1.1rem; font-weight: 700; text-align: left; }
+.statistics-leaderboard th, .statistics-leaderboard td { padding: 10px 8px; border-bottom: 1px solid var(--border); text-align: left; }
 .statistics-leaderboard th { color: var(--muted); font-size: .85rem; }
 .statistics-leaderboard td:first-child { font-weight: 700; }
 .statistics-detail-row td { padding-top: 0; }
 .statistics-detail-row details { margin: 8px 0; }
 .statistics-game-list { margin: 8px 0; padding-left: 20px; }
 .statistics-bar-chart { display: grid; gap: 10px; margin: 12px 0 4px; }
-.statistics-bar-row { align-items: center; display: grid; gap: 10px; grid-template-columns: minmax(80px, 140px) 1fr; }
+.statistics-bar-row { display: grid; grid-template-columns: minmax(80px, 140px) 1fr; align-items: center; gap: 10px; }
 .statistics-bar-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .statistics-bar-values { display: grid; gap: 4px; }
-.statistics-bar { background: var(--primary); border-radius: 999px; height: 12px; min-width: 3px; }
-.statistics-bar-rate { background: var(--accent); }
+.statistics-bar { min-width: 3px; height: 12px; border-radius: 999px; background: var(--primary); }
+.statistics-bar-rate { background: var(--family); }
 .statistics-chart-legend, .statistics-chart-note, .statistics-chart-axis-note { color: var(--muted); font-size: .85rem; }
 .statistics-chart { margin: 24px 0; }
-.statistics-chart figcaption { font-size: 1.1rem; font-weight: 700; margin-bottom: 8px; }
-.statistics-line-svg { background: #fbfdff; border: 1px solid var(--border); border-radius: 8px; display: block; max-width: 100%; width: 100%; }
+.statistics-chart figcaption { margin-bottom: 8px; font-size: 1.1rem; font-weight: 700; }
+.statistics-line-svg { display: block; width: 100%; max-width: 100%; border: 1px solid var(--border); border-radius: 8px; background: #fffef9; }
 .statistics-axis { stroke: var(--border); stroke-width: 1; }
 .statistics-axis-label { fill: var(--muted); font-size: 12px; }
 .statistics-line { fill: none; stroke-width: 3; }
 .statistics-point { stroke: #fff; stroke-width: 1.5; }
 .statistics-line-0 { color: #1f6feb; stroke: #1f6feb; }
-.statistics-line-1 { color: #d97706; stroke: #d97706; }
-.statistics-line-2 { color: #059669; stroke: #059669; }
-.statistics-line-3 { color: #db2777; stroke: #db2777; }
-.statistics-line-4 { color: #7c3aed; stroke: #7c3aed; }
-.statistics-line-5 { color: #0891b2; stroke: #0891b2; }
+.statistics-line-1 { color: #b45d00; stroke: #b45d00; }
+.statistics-line-2 { color: #08794e; stroke: #08794e; }
+.statistics-line-3 { color: #b42363; stroke: #b42363; }
+.statistics-line-4 { color: #6d3bc0; stroke: #6d3bc0; }
+.statistics-line-5 { color: #087991; stroke: #087991; }
 .statistics-point.statistics-line-0 { fill: #1f6feb; }
-.statistics-point.statistics-line-1 { fill: #d97706; }
-.statistics-point.statistics-line-2 { fill: #059669; }
-.statistics-point.statistics-line-3 { fill: #db2777; }
-.statistics-point.statistics-line-4 { fill: #7c3aed; }
-.statistics-point.statistics-line-5 { fill: #0891b2; }
+.statistics-point.statistics-line-1 { fill: #b45d00; }
+.statistics-point.statistics-line-2 { fill: #08794e; }
+.statistics-point.statistics-line-3 { fill: #b42363; }
+.statistics-point.statistics-line-4 { fill: #6d3bc0; }
+.statistics-point.statistics-line-5 { fill: #087991; }
 .statistics-line-legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px; }
 .statistics-legend-item { color: var(--text); font-size: .85rem; }
 .statistics-line-legend .statistics-line-0 { color: #1f6feb; }
-.statistics-line-legend .statistics-line-1 { color: #d97706; }
-.statistics-line-legend .statistics-line-2 { color: #059669; }
-.statistics-line-legend .statistics-line-3 { color: #db2777; }
-.statistics-line-legend .statistics-line-4 { color: #7c3aed; }
-.statistics-line-legend .statistics-line-5 { color: #0891b2; }
-.statistics-legend-item::before { background: currentColor; border-radius: 50%; content: ''; display: inline-block; height: 9px; margin-right: 5px; width: 9px; }
+.statistics-line-legend .statistics-line-1 { color: #b45d00; }
+.statistics-line-legend .statistics-line-2 { color: #08794e; }
+.statistics-line-legend .statistics-line-3 { color: #b42363; }
+.statistics-line-legend .statistics-line-4 { color: #6d3bc0; }
+.statistics-line-legend .statistics-line-5 { color: #087991; }
+.statistics-legend-item::before { display: inline-block; width: 9px; height: 9px; margin-right: 5px; border-radius: 50%; background: currentColor; content: ""; }
 .statistics-trend-content { margin-top: 10px; }
 .statistics-box-whisker, .statistics-box-median { stroke: var(--text); stroke-width: 2; }
-.statistics-box { fill: #bfdbfe; stroke: var(--primary); stroke-width: 2; }
+.statistics-box { fill: #c9d3ad; stroke: #657345; stroke-width: 2; }
 .statistics-matrix { margin-top: 24px; overflow: hidden; }
 .statistics-matrix th, .statistics-matrix td { text-align: center; }
 .statistics-matrix th:first-child { text-align: left; }
 .statistics-round-bars { display: flex; gap: 12px; overflow-x: auto; padding: 12px 4px 4px; }
 .statistics-round-group { min-width: 96px; text-align: center; }
 .statistics-round-group strong { display: block; font-size: .85rem; }
-.statistics-round-bars-inner { align-items: end; border-bottom: 1px solid var(--border); display: flex; gap: 4px; height: 150px; justify-content: center; margin-top: 6px; padding: 0 4px; }
-.statistics-round-bar-wrap { align-items: center; display: flex; flex-direction: column; height: 100%; justify-content: end; min-width: 22px; }
-.statistics-round-bar { border-radius: 4px 4px 0 0; min-height: 2px; width: 18px; }
-.statistics-round-bar-wrap small { color: var(--muted); font-size: .65rem; max-width: 42px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.statistics-round-bars-inner { display: flex; align-items: end; justify-content: center; gap: 4px; height: 150px; margin-top: 6px; padding: 0 4px; border-bottom: 1px solid var(--border); }
+.statistics-round-bar-wrap { display: flex; flex-direction: column; align-items: center; justify-content: end; min-width: 22px; height: 100%; }
+.statistics-round-bar { width: 18px; min-height: 2px; border-radius: 4px 4px 0 0; }
+.statistics-round-bar-wrap small { max-width: 42px; overflow: hidden; color: var(--muted); font-size: .65rem; text-overflow: ellipsis; white-space: nowrap; }
+.hidden { display: none; }
 
+@media (max-width: 760px) {
+  .tabs { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
 @media (max-width: 600px) {
-  .game-grid { grid-template-columns: 1fr; }
-  .mario-race-controls, .statistics-filters { grid-template-columns: 1fr; }
+  .app { padding-top: 18px; }
+  .tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .family-marker { font-size: .8rem; }
+  .card { border-radius: 11px; }
+  .game-grid, .mario-race-controls, .statistics-filters { grid-template-columns: 1fr; }
   .game-card { min-height: 0; }
-  .statistics-tabs { gap: 4px; }
-  .statistics-tab { font-size: .9rem; padding: 9px 6px; }
+  .mario-item-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .mario-placement-buttons { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .statistics-tabs { gap: 4px; overflow-x: auto; padding: 3px; }
+  .statistics-tab { min-width: max-content; font-size: .9rem; padding: 9px 10px; }
   .statistics-leaderboard thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .statistics-leaderboard, .statistics-leaderboard tbody, .statistics-leaderboard tr, .statistics-leaderboard td { display: block; width: 100%; }
-  .statistics-leaderboard tr:not(.statistics-detail-row) { border: 1px solid var(--border); border-radius: 8px; margin-top: 8px; padding: 4px 10px; }
-  .statistics-leaderboard td { align-items: baseline; border: 0; display: flex; justify-content: space-between; padding: 5px 0; }
+  .statistics-leaderboard tr:not(.statistics-detail-row) { margin-top: 8px; padding: 4px 10px; border: 1px solid var(--border); border-radius: 8px; background: rgb(255 254 249 / 70%); }
+  .statistics-leaderboard td { display: flex; align-items: baseline; justify-content: space-between; padding: 5px 0; border: 0; gap: 12px; }
   .statistics-leaderboard td::before { color: var(--muted); content: attr(data-label); font-size: .85rem; }
   .statistics-detail-row td::before { content: none; }
   .statistics-detail-row td { display: block; padding: 0 10px; }
 }
-
-.hidden {
-  display: none;
+@media (max-width: 390px) {
+  .app-header { align-items: center; }
+  h1 { font-size: 1.9rem; }
+  .subtitle { font-size: .9rem; }
+  .family-marker { align-items: flex-start; flex-direction: column; gap: 2px; padding-block: 7px; }
+  .family-marker a { min-height: 24px; }
+  .button-row { flex-wrap: wrap; }
+  .button-row button { flex-basis: 100%; }
+  #cancel-session { width: 100%; }
+  .inline-grid { grid-template-columns: minmax(0, 1fr) 96px; }
+  .statistics-overview { gap: 5px; }
+  .statistics-overview-item { padding: 8px 4px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+  button:active, .game-card:hover, .mario-item-button.is-selected { transform: none; }
 }

@@ -4,8 +4,8 @@
   "description": "Simple offline score tracking for board and card games.",
   "start_url": "./",
   "display": "standalone",
-  "background_color": "#f4f2e8",
-  "theme_color": "#1f6feb",
+  "background_color": "#eee8d7",
+  "theme_color": "#18211e",
   "icons": [
     { "src": "./icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
   ]
