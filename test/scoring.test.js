@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { finalTotalEngine, marioKartEngine, rankTotals, roundSumEngine, winnerOnlyEngine } from '../web_app/src/scoring/engines.js';
-import { MARIO_KART_TRACKS } from '../web_app/src/data/mario-kart.js';
+import { latestCustomItemIds, MARIO_KART_ITEM_PRESETS, MARIO_KART_TRACKS } from '../web_app/src/data/mario-kart.js';
 
 const players = [{ id: 'a', displayName: 'A' }, { id: 'b', displayName: 'B' }];
 
@@ -60,4 +60,18 @@ test('Mario Kart engine converts unique placements to standard points', () => {
   const secondRace = { ...result.entry, cc: '150cc' };
   assert.equal(marioKartEngine.validateSession({ races: [result.entry, secondRace] }, players).valid, false);
   assert.deepEqual(marioKartEngine.calculateTotals({ races: [result.entry] }, players), { a: 15, b: 8, c: 5, d: 1 });
+});
+
+test('Mario Kart supports empty-item presets and restores the latest custom selection', () => {
+  const baseRace = { cc: '150cc', participantIds: ['a', 'b'], placements: { a: 1, b: 2 }, itemIds: [] };
+  assert.deepEqual(MARIO_KART_ITEM_PRESETS['no-items'].items, []);
+  assert.deepEqual(MARIO_KART_ITEM_PRESETS['no-items-or-coins'].items, []);
+  assert.equal(marioKartEngine.validateEntry({ ...baseRace, itemSet: 'no-items' }, players).valid, true);
+  assert.equal(marioKartEngine.validateEntry({ ...baseRace, itemSet: 'no-items-or-coins' }, players).valid, true);
+  assert.equal(marioKartEngine.validateEntry({ ...baseRace, itemSet: 'custom' }, players).valid, false);
+  const sessions = [
+    { createdAt: '2026-01-01', scoring: { engineId: 'mario-kart-8' }, entries: { races: [{ itemSet: 'custom', itemIds: ['Banana'] }] } },
+    { createdAt: '2026-02-01', scoring: { engineId: 'mario-kart-8' }, marioKartSetup: { itemSet: 'custom', itemIds: ['Mushroom', 'Boo'] }, entries: { races: [] } },
+  ];
+  assert.deepEqual(latestCustomItemIds(sessions), ['Mushroom', 'Boo']);
 });

@@ -50,6 +50,8 @@ function sessionRules(session) {
 function renderMarioKartSetup(panel, session, engine, reportError, i18n, editorState, onStateChange) {
   panel.replaceChildren();
   const draft = editorState.marioSetupDraft ?? { cc: MARIO_KART_CC_OPTIONS[2], itemSet: 'normal', itemIds: [...(MARIO_KART_ITEM_PRESETS.normal.items ?? [])] };
+  let rememberedCustomItems = [...(draft.itemSet === 'custom' && draft.itemIds.length ? draft.itemIds : editorState.marioCustomItemIds ?? [])];
+  const saveSetupState = () => onStateChange({ ...editorState, marioSetupDraft: draft, marioCustomItemIds: [...rememberedCustomItems] });
   const setup = element('section', undefined, 'mario-setup');
   setup.append(element('h3', i18n.t('marioKart.setup')));
 
@@ -59,8 +61,8 @@ function renderMarioKartSetup(panel, session, engine, reportError, i18n, editorS
   const itemLabel = element('label', i18n.t('marioKart.itemSet')); const itemSet = document.createElement('select');
   selectOptions(itemSet, Object.keys(MARIO_KART_ITEM_PRESETS), itemPresetName); itemSet.value = draft.itemSet;
   const itemButtons = element('div');
-  const refreshItems = () => { draft.itemIds = draft.itemSet === 'custom' ? draft.itemIds : [...(MARIO_KART_ITEM_PRESETS[draft.itemSet]?.items ?? [])]; renderItemButtons(itemButtons, draft, i18n, () => { onStateChange({ ...editorState, marioSetupDraft: draft }); }); };
-  itemSet.addEventListener('change', () => { draft.itemSet = itemSet.value; refreshItems(); onStateChange({ ...editorState, marioSetupDraft: draft }); }); itemLabel.append(itemSet);
+  const refreshItems = () => { draft.itemIds = draft.itemSet === 'custom' ? [...rememberedCustomItems] : [...(MARIO_KART_ITEM_PRESETS[draft.itemSet]?.items ?? [])]; renderItemButtons(itemButtons, draft, i18n, () => { if (draft.itemSet === 'custom') rememberedCustomItems = [...draft.itemIds]; saveSetupState(); }); };
+  itemSet.addEventListener('change', () => { if (draft.itemSet === 'custom') rememberedCustomItems = [...draft.itemIds]; draft.itemSet = itemSet.value; refreshItems(); saveSetupState(); }); itemLabel.append(itemSet);
   controls.append(ccLabel, itemLabel); setup.append(controls, itemButtons); refreshItems();
 
   const roster = element('fieldset', undefined, 'mario-roster'); roster.append(element('legend', i18n.t('marioKart.racers')));
@@ -84,7 +86,7 @@ function renderMarioKartSetup(panel, session, engine, reportError, i18n, editorS
   const confirm = element('button', i18n.t('marioKart.confirmSetup'), 'accent'); confirm.type = 'button'; confirm.addEventListener('click', () => {
     if (session.participants.length < 2) return reportError('errors.marioKartPlayersRequired');
     session.marioKartSetup = { cc: draft.cc, itemSet: draft.itemSet, itemIds: [...draft.itemIds] };
-    onStateChange({ ...editorState, marioSetupDraft: draft });
+    saveSetupState();
     renderMarioKartEditor(panel, session, engine, reportError, i18n, editorState, onStateChange);
   });
   setup.append(confirm); panel.append(setup);
@@ -94,7 +96,7 @@ function renderItemButtons(container, draft, i18n, onChange, locked = false) {
   container.replaceChildren();
   const available = draft.itemSet === 'custom' ? MARIO_KART_ITEMS : (MARIO_KART_ITEM_PRESETS[draft.itemSet]?.items ?? []);
   if (draft.itemSet !== 'custom') {
-    container.append(element('p', i18n.t('marioKart.presetItems', { items: available.join(', ') }), 'muted'));
+    container.append(element('p', available.length ? i18n.t('marioKart.presetItems', { items: available.join(', ') }) : i18n.t('marioKart.noItemsEnabled'), 'muted'));
     return;
   }
   const grid = element('div', undefined, 'mario-item-grid');
@@ -117,7 +119,7 @@ function renderItemButtons(container, draft, i18n, onChange, locked = false) {
 function renderPlacementInputs(container, draft, session, i18n) {
   container.replaceChildren();
   session.participants.filter((participant) => draft.participantIds.includes(participant.id)).forEach((participant) => {
-    const row = element('label', undefined, 'mario-placement-row');
+    const row = element('div', undefined, 'mario-placement-row');
     row.append(element('span', participant.displayName));
     const buttons = element('div', undefined, 'mario-placement-buttons');
     const selectedPlace = Number(draft.placements[participant.id]);
@@ -153,7 +155,7 @@ export function renderMarioKartEditor(panel, session, engine, reportError, i18n,
   if (rulesLocked && !editingRaceId) draft = { ...draft, ...lockedRules };
   const setState = () => onStateChange({ ...editorState, marioDraft: draft, marioEditingRaceId: editingRaceId });
   const raceForm = element('section', undefined, 'mario-race-form');
-  raceForm.append(element('p', i18n.t('marioKart.raceProgress', { current: session.entries.races.length, target: session.targetRaces })));
+  raceForm.append(element('p', i18n.t('marioKart.raceProgress', { current: session.entries.races.length }), 'mario-race-progress'));
 
   const controls = element('div', undefined, 'mario-race-controls');
   const trackLabel = element('label', i18n.t('marioKart.track')); const track = trackComboBox(draft, i18n, setState);

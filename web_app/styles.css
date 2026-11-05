@@ -224,7 +224,19 @@ summary { border-radius: 4px; }
 .history-delete, .history-edit, .history-export-session { flex: 0 0 auto; width: 38px; height: 38px; min-height: 38px; margin: 0; padding: 4px; font-size: 1rem; }
 .round-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 6px 0; }
 .round-edit { flex: 0 0 auto; width: auto; margin: 0; padding: 6px 10px; }
-.statistics-overview { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 12px 0 16px; }
+.statistics-filter-panel { margin: 8px 0 18px; padding: 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--card-alt); }
+.statistics-global-filters { display: grid; grid-template-columns: minmax(150px, 1fr) minmax(150px, 1fr) minmax(170px, 1fr) auto; align-items: end; gap: 10px; }
+.statistics-global-filters > label { margin: 0; }
+.statistics-player-filter { position: relative; margin: 0; }
+.statistics-player-filter > summary { min-height: 44px; padding: 9px 12px; border: 1px solid var(--border-strong); border-radius: 8px; background: #fffef9; cursor: pointer; font-weight: 700; }
+.statistics-player-options { position: absolute; z-index: 3; width: max-content; min-width: 100%; max-height: 280px; margin: 4px 0 0; padding: 10px; overflow-y: auto; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--card); box-shadow: var(--shadow); }
+.statistics-player-option, .statistics-toggle { display: flex; align-items: center; gap: 8px; margin: 0; white-space: nowrap; }
+.statistics-player-option input, .statistics-toggle input { width: 20px; min-height: 20px; height: 20px; accent-color: var(--primary); }
+.statistics-toggle { min-height: 44px; padding-bottom: 2px; }
+.statistics-clear-filters { width: auto; margin: 0; white-space: nowrap; }
+.statistics-custom-dates { display: grid; grid-template-columns: repeat(2, minmax(0, 220px)); gap: 10px; margin-top: 10px; }
+.statistics-custom-dates label { margin: 0; }
+.statistics-overview { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin: 12px 0 16px; }
 .statistics-tabs { display: flex; gap: 8px; margin: 12px 0; }
 .statistics-tab { margin: 0; border-color: var(--border); background: var(--card-alt); color: var(--text); font-weight: 700; }
 .statistics-tab:hover { background: #eee8d8; }
@@ -237,7 +249,14 @@ summary { border-radius: 4px; }
 .statistics-leaderboard caption { padding-bottom: 8px; caption-side: top; font-size: 1.1rem; font-weight: 700; text-align: left; }
 .statistics-leaderboard th, .statistics-leaderboard td { padding: 10px 8px; border-bottom: 1px solid var(--border); text-align: left; }
 .statistics-leaderboard th { color: var(--muted); font-size: .85rem; }
+.statistics-sort-button { width: auto; min-height: 34px; margin: -7px -8px; padding: 7px 8px; border: 0; background: transparent; color: var(--text); box-shadow: none; font-size: inherit; text-align: left; }
+.statistics-sort-button:hover { background: var(--family-soft); color: var(--text); }
+.statistics-sort-button:active { transform: none; box-shadow: none; }
+.statistics-leaderboard th[aria-sort="ascending"] .statistics-sort-button::after { content: " ↑"; }
+.statistics-leaderboard th[aria-sort="descending"] .statistics-sort-button::after { content: " ↓"; }
 .statistics-leaderboard td:first-child { font-weight: 700; }
+.statistics-leaderboard td.is-leader { background: var(--family-soft); color: var(--text); font-weight: 800; }
+.statistics-table-scroll { overflow-x: auto; }
 .statistics-detail-row td { padding-top: 0; }
 .statistics-detail-row details { margin: 8px 0; }
 .statistics-game-list { margin: 8px 0; padding-left: 20px; }
@@ -287,12 +306,20 @@ summary { border-radius: 4px; }
 .statistics-round-group strong { display: block; font-size: .85rem; }
 .statistics-round-bars-inner { display: flex; align-items: end; justify-content: center; gap: 4px; height: 150px; margin-top: 6px; padding: 0 4px; border-bottom: 1px solid var(--border); }
 .statistics-round-bar-wrap { display: flex; flex-direction: column; align-items: center; justify-content: end; min-width: 22px; height: 100%; }
-.statistics-round-bar { width: 18px; min-height: 2px; border-radius: 4px 4px 0 0; }
+.statistics-round-bar { width: 18px; min-height: 2px; border-radius: 4px 4px 0 0; background: var(--primary); }
+.statistics-round-bar.statistics-line-0 { background: #1f6feb; }
+.statistics-round-bar.statistics-line-1 { background: #b45d00; }
+.statistics-round-bar.statistics-line-2 { background: #08794e; }
+.statistics-round-bar.statistics-line-3 { background: #b42363; }
+.statistics-round-bar.statistics-line-4 { background: #6d3bc0; }
+.statistics-round-bar.statistics-line-5 { background: #087991; }
+.statistics-round-value { color: var(--text); font-size: .68rem; font-weight: 700; }
 .statistics-round-bar-wrap small { max-width: 42px; overflow: hidden; color: var(--muted); font-size: .65rem; text-overflow: ellipsis; white-space: nowrap; }
 .hidden { display: none; }
 
 @media (max-width: 760px) {
   .tabs { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .statistics-global-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 600px) {
   .app { padding-top: 18px; }
@@ -300,9 +327,10 @@ summary { border-radius: 4px; }
   .family-marker { font-size: .8rem; }
   .card { border-radius: 11px; }
   .game-grid, .mario-race-controls, .statistics-filters { grid-template-columns: 1fr; }
+  .statistics-global-filters, .statistics-custom-dates { grid-template-columns: 1fr; }
+  .statistics-player-options { position: static; width: 100%; }
+  .statistics-clear-filters { width: 100%; }
   .game-card { min-height: 0; }
-  .mario-item-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .mario-placement-buttons { grid-template-columns: repeat(6, minmax(0, 1fr)); }
   .statistics-tabs { gap: 4px; overflow-x: auto; padding: 3px; }
   .statistics-tab { min-width: max-content; font-size: .9rem; padding: 9px 10px; }
   .statistics-leaderboard thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
@@ -312,6 +340,12 @@ summary { border-radius: 4px; }
   .statistics-leaderboard td::before { color: var(--muted); content: attr(data-label); font-size: .85rem; }
   .statistics-detail-row td::before { content: none; }
   .statistics-detail-row td { display: block; padding: 0 10px; }
+  .statistics-table-scroll .statistics-leaderboard { display: table; min-width: 560px; }
+  .statistics-table-scroll .statistics-leaderboard thead { position: static; display: table-header-group; width: auto; height: auto; overflow: visible; clip: auto; white-space: normal; }
+  .statistics-table-scroll .statistics-leaderboard tbody { display: table-row-group; }
+  .statistics-table-scroll .statistics-leaderboard tr { display: table-row; }
+  .statistics-table-scroll .statistics-leaderboard th, .statistics-table-scroll .statistics-leaderboard td { display: table-cell; width: auto; padding: 8px; border-bottom: 1px solid var(--border); }
+  .statistics-table-scroll .statistics-leaderboard td::before { content: none; }
 }
 @media (max-width: 390px) {
   .app-header { align-items: center; }

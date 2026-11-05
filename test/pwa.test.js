@@ -3,17 +3,19 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 test('the PWA declares a manifest and versioned offline shell', async () => {
-  const [manifest, worker, html] = await Promise.all([
+  const [manifest, worker, html, styles, marioKart] = await Promise.all([
     readFile(new URL('../web_app/manifest.webmanifest', import.meta.url), 'utf8'),
     readFile(new URL('../web_app/service-worker.js', import.meta.url), 'utf8'),
     readFile(new URL('../web_app/index.html', import.meta.url), 'utf8'),
+    readFile(new URL('../web_app/styles.css', import.meta.url), 'utf8'),
+    readFile(new URL('../web_app/src/ui/mario-kart.js', import.meta.url), 'utf8'),
   ]);
   assert.match(manifest, /"start_url": "\.\/"/);
   assert.match(manifest, /icons\/icon\.svg/);
   assert.match(html, /manifest\.webmanifest/);
   assert.match(html, /DK <span aria-hidden="true">\/<\/span> Scoresheets/);
   assert.match(html, /href="https:\/\/dckoster\.com"/);
-  assert.match(worker, /CACHE_VERSION = 'scoresheets-shell-v10'/);
+  assert.match(worker, /CACHE_VERSION = 'scoresheets-shell-v13'/);
   assert.match(worker, /const APP_SHELL = \[\s*'\/'/);
   assert.match(worker, /CACHE_VERSION = 'scoresheets-shell-v\d+'/);
   assert.match(worker, /'\.\/src\/main\.js'/);
@@ -23,4 +25,8 @@ test('the PWA declares a manifest and versioned offline shell', async () => {
   assert.match(worker, /caches\.delete/);
   assert.match(worker, /!response\.redirected/);
   assert.doesNotMatch(worker, /cache\.put\(request, response\.clone\(\)\)\);/);
+  assert.equal([...styles.matchAll(/\.mario-item-grid \{[^}]*grid-template-columns: repeat\(6,/g)].length, 1);
+  assert.equal([...styles.matchAll(/\.mario-placement-buttons \{[^}]*grid-template-columns: repeat\(12,/g)].length, 1);
+  assert.match(marioKart, /element\('div', undefined, 'mario-placement-row'\)/);
+  assert.doesNotMatch(html, /target-races/);
 });

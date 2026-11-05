@@ -86,7 +86,7 @@ function validateBackupSession(session) {
     validateScoring(session.scoring);
     const engine = getScoringEngine(session.scoring.engineId);
     if (session.scoring.engineId === 'mario-kart-8') {
-      if (!Number.isInteger(session.targetRaces) || session.targetRaces < 1 || !engine.validateSession(session.entries, session.participants).valid) return false;
+      if (!engine.validateSession(session.entries, session.participants).valid) return false;
       const totals = engine.calculateTotals(session.entries, session.participants);
       return session.totals && Object.entries(totals).every(([id, total]) => session.totals[id] === total);
     }

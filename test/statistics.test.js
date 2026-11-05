@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { calculateChartData, calculateMarioKartStatistics, calculateStatistics, normalizePlayerName } from '../web_app/src/ui/statistics.js';
+import { calculateChartData, calculateCompetitionInsights, calculateMarioKartStatistics, calculateRoundAnalytics, calculateStatistics, filterStatisticsSessions, normalizePlayerName } from '../web_app/src/ui/statistics.js';
 import { groupSessionsByGame } from '../web_app/src/ui/history.js';
 
 const session = (id, ranking, scores, gameId = 'game') => ({
@@ -156,4 +156,54 @@ test('winner-only chart data has participants but no numeric score series', () =
   const result = calculateChartData([winner], 'quick');
   assert.deepEqual(result.players.map(({ displayName }) => displayName), ['A', 'B']);
   assert.deepEqual(result.sessions[0].scores, {});
+});
+
+test('player and date filters preserve winners from the complete original session', () => {
+  const first = { ...session('one', 'highest', { A: 5, B: 10, C: 1 }), createdAt: '2026-01-10T12:00:00Z' };
+  const second = { ...session('two', 'highest', { A: 12, C: 2 }), createdAt: '2026-02-10T12:00:00Z' };
+  const result = calculateStatistics([first, second], { playerKeys: ['A'], from: Date.parse('2026-01-01'), to: Date.parse('2026-01-31T23:59:59Z') });
+  assert.deepEqual(result.players.map(({ displayName, gamesPlayed, wins }) => [displayName, gamesPlayed, wins]), [['A', 1, 0]]);
+  assert.equal(filterStatisticsSessions([first, second], { playerKeys: ['A', 'B'], sharedOnly: true }).length, 1);
+  assert.equal(filterStatisticsSessions([first, second], { playerKeys: ['B'], sharedOnly: false }).length, 1);
+});
+
+test('Mario Kart totals count unique races instead of player-result records', () => {
+  const mario = {
+    id: 'unique-races', createdAt: '2026-03-01T12:00:00Z', scoring: { engineId: 'mario-kart-8', ranking: 'highest' },
+    participants: [{ id: 'a', displayName: 'A' }, { id: 'b', displayName: 'B' }, { id: 'c', displayName: 'C' }], totals: { a: 27, b: 27, c: 15 },
+    entries: { races: [
+      { id: 'r1', cc: '150cc', itemSet: 'normal', itemIds: [], participantIds: ['a', 'b', 'c'], placements: { a: 1, b: 2, c: 3 }, points: { a: 15, b: 12, c: 10 } },
+      { id: 'r2', cc: '150cc', itemSet: 'normal', itemIds: [], participantIds: ['a', 'b'], placements: { a: 2, b: 1 }, points: { a: 12, b: 15 } },
+    ] },
+  };
+  const all = calculateMarioKartStatistics([mario]);
+  assert.equal(all.records.length, 5);
+  assert.equal(all.raceCount, 2);
+  assert.equal(all.sessionCount, 1);
+  assert.equal(all.conditions[0].races, 2);
+  const shared = calculateMarioKartStatistics([mario], { playerKeys: ['A', 'C'], sharedOnly: true });
+  assert.equal(shared.raceCount, 1);
+  assert.deepEqual(shared.players.map(({ displayName, races }) => [displayName, races]), [['A', 1], ['C', 1]]);
+});
+
+test('round analytics aggregate variable-length sessions and identify comeback wins', () => {
+  const participants = [{ id: 'a', displayName: 'A' }, { id: 'b', displayName: 'B' }];
+  const first = { id: 'r-one', gameId: 'rounds', createdAt: '2026-01-01', scoring: { engineId: 'round-sum', ranking: 'highest' }, participants, entries: { rounds: [{ scores: { a: 1, b: 5 } }, { scores: { a: 10, b: 0 } }] }, totals: { a: 11, b: 5 } };
+  const second = { id: 'r-two', gameId: 'rounds', createdAt: '2026-01-02', scoring: { engineId: 'round-sum', ranking: 'highest' }, participants, entries: { rounds: [{ scores: { a: 3, b: 2 } }, { scores: { a: 3, b: 2 } }, { scores: { a: 3, b: 2 } }] }, totals: { a: 9, b: 6 } };
+  const result = calculateRoundAnalytics([first, second], 'rounds');
+  assert.equal(result.sessionCount, 2);
+  assert.equal(result.players.find((player) => player.key === 'a').roundsPlayed, 5);
+  assert.equal(result.players.find((player) => player.key === 'a').comebackWins, 1);
+  assert.equal(result.averageLeadChanges, 0.5);
+});
+
+test('competition insights expose sortable metrics and two-player head-to-head totals', () => {
+  const sessions = [
+    { ...session('one', 'highest', { A: 10, B: 2 }), createdAt: '2026-01-01' },
+    { ...session('two', 'highest', { A: 1, B: 8 }), createdAt: '2026-01-02' },
+    { ...session('three', 'highest', { A: 7, B: 7 }), createdAt: '2026-01-03' },
+  ];
+  const result = calculateCompetitionInsights(sessions, { playerKeys: ['A', 'B'] });
+  assert.deepEqual(result.headToHead, { first: 'a', second: 'b', sharedSessions: 3, firstWins: 1, secondWins: 1, ties: 1 });
+  assert.equal(result.bestWinRate.gamesPlayed, 3);
 });

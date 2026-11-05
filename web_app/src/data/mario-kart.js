@@ -41,7 +41,20 @@ export const MARIO_KART_ITEM_PRESETS = Object.freeze({
   normal: Object.freeze({ name: 'Normal', items: Object.freeze([...MARIO_KART_ITEMS]) }),
   frantic: Object.freeze({ name: 'Frantic', items: Object.freeze([...MARIO_KART_ITEMS]) }),
   'shrooms-only': Object.freeze({ name: 'Shrooms-only', items: Object.freeze(['Mushroom', 'Triple Mushrooms', 'Golden Mushroom']) }),
+  'no-items': Object.freeze({ name: 'No items', items: Object.freeze([]) }),
+  'no-items-or-coins': Object.freeze({ name: 'No items or coins', items: Object.freeze([]) }),
   custom: Object.freeze({ name: 'Custom', items: Object.freeze([]) }),
 });
 
 export function itemPresetName(id) { return MARIO_KART_ITEM_PRESETS[id]?.name ?? id; }
+
+export function latestCustomItemIds(sessions = []) {
+  const newestFirst = [...sessions].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  for (const session of newestFirst) {
+    if (session?.scoring?.engineId !== 'mario-kart-8') continue;
+    if (session.marioKartSetup?.itemSet === 'custom' && session.marioKartSetup.itemIds?.length) return [...session.marioKartSetup.itemIds];
+    const customRace = [...(session.entries?.races ?? [])].reverse().find((race) => race.itemSet === 'custom' && race.itemIds?.length);
+    if (customRace) return [...customRace.itemIds];
+  }
+  return [];
+}

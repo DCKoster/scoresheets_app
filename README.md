@@ -22,4 +22,4 @@ When changing files listed in `web_app/service-worker.js`, increment `CACHE_VERS
 
 Run the dependency-free automated tests with `npm test`.
 
-See [Manage Games and Scoring Improvements](docs/manage-games-scoring-improvements.md) for the proposed categories, cooperative scoring, and card-based game-management redesign.
+See [Composable Scoring Architecture](docs/composable-scoring-architecture.md) for advanced scoring ideas that remain deferred, and [Online Evolution](docs/online-evolution.md) for proposed accounts, authorization, synchronization, and server-backed storage.
