@@ -31,7 +31,7 @@ export function validateGameName(name, games, exceptId = null) {
     : { valid: true, name: trimmed };
 }
 
-function validateScoring(scoring) {
+export function validateScoring(scoring) {
   if (!['round-sum', 'final-total', 'winner-only', 'mario-kart-8'].includes(scoring?.engineId)) throw new Error('errors.scoringEngineUnknown');
   const validRanking = scoring.engineId === 'winner-only'
     ? scoring.ranking === 'selected'
@@ -44,7 +44,7 @@ function normalizeScoreCategories(categories) {
   return categories.map((value) => String(value ?? '').trim()).filter(Boolean);
 }
 
-function validateMetadata(input) {
+export function validateMetadata(input) {
   const scoreCategories = normalizeScoreCategories(input.scoreCategories);
   if (scoreCategories.some((value) => value.length > SCORE_CATEGORY_MAX_LENGTH)) throw new Error('errors.scoreCategoryTooLong');
   if (new Set(scoreCategories.map(normalizedName)).size !== scoreCategories.length) throw new Error('errors.scoreCategoryDuplicate');

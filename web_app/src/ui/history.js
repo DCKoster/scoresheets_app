@@ -25,9 +25,14 @@ function renderSession(session, currentNames, onDelete, onEdit, onExportSession,
   exportButton.addEventListener('click', () => onExportSession(session.id));
   const button = node('button', '🗑', 'delete history-delete');
   button.type = 'button'; button.setAttribute('aria-label', i18n.t('games.delete')); button.title = i18n.t('games.delete');
-  button.addEventListener('click', () => onDelete(session.id));
-  const actions = node('div', '', 'history-actions'); actions.append(edit, exportButton, button); heading.append(actions);
+  button.addEventListener('click', () => onDelete(session.id, session));
+  const actions = node('div', '', 'history-actions');
+  if (onEdit) actions.append(edit);
+  if (onExportSession) actions.append(exportButton);
+  if (onDelete) actions.append(button);
+  if (actions.childElementCount) heading.append(actions);
   item.append(heading, node('small', i18n.formatDateTime(session.createdAt)));
+  if (session.pending) item.append(node('p', i18n.t(session.syncError ?? 'cloud.pending'), 'muted'));
   const names = new Map(session.participants.map((participant) => [participant.id, participant.displayName]));
   if (session.scoring.engineId === 'winner-only') {
     const winners = Array.isArray(session.entries?.winnerIds) ? session.entries.winnerIds : session.entries?.winnerId == null ? [] : [session.entries.winnerId];
@@ -55,22 +60,23 @@ function renderSession(session, currentNames, onDelete, onEdit, onExportSession,
   return item;
 }
 
-export function renderSavedSessions(savedList, sessions, games, { onDelete, onEdit, onExport, onExportSession, onImport }, i18n, grouped = false, onGroupChange = () => {}) {
+export function renderSavedSessions(savedList, sessions, games, { onDelete, onEdit, onExport, onExportSession, onImport, canEdit = () => true }, i18n, grouped = false, onGroupChange = () => {}) {
   savedList.replaceChildren();
   const toggle = node('button', i18n.t('session.groupByGame'), 'secondary history-group-toggle');
   toggle.type = 'button'; toggle.setAttribute('aria-pressed', String(grouped));
   toggle.addEventListener('click', () => onGroupChange(!grouped));
-  const exportButton = node('button', i18n.t('backup.export'), 'secondary history-export'); exportButton.type = 'button'; exportButton.addEventListener('click', onExport);
+  const exportButton = node('button', i18n.t('backup.export'), 'secondary history-export'); exportButton.type = 'button'; if (onExport) exportButton.addEventListener('click', onExport);
   const importLabel = node('label', i18n.t('backup.import'), 'secondary history-import');
   const importInput = document.createElement('input'); importInput.type = 'file'; importInput.accept = 'application/json,.json'; importInput.className = 'hidden';
   importInput.addEventListener('change', async () => { if (importInput.files?.[0]) await onImport(importInput.files[0]); importInput.value = ''; });
   importLabel.append(importInput);
-  const controls = node('div', '', 'history-controls'); controls.append(toggle, exportButton, importLabel); savedList.append(controls);
+  const controls = node('div', '', 'history-controls'); controls.append(toggle); if (onExport) controls.append(exportButton); if (onImport) controls.append(importLabel); savedList.append(controls);
   if (!sessions.length) return savedList.append(node('p', i18n.t('session.noneSaved')));
 
   const currentNames = new Map(games.map((game) => [game.id, getGameName(game, i18n.locale)]));
+  const render = (session) => renderSession(session, currentNames, canEdit(session) ? onDelete : null, canEdit(session) ? onEdit : null, onExportSession, i18n);
   if (!grouped) {
-    sessions.forEach((session) => savedList.append(renderSession(session, currentNames, onDelete, onEdit, onExportSession, i18n)));
+    sessions.forEach((session) => savedList.append(render(session)));
     return;
   }
 
@@ -78,7 +84,7 @@ export function renderSavedSessions(savedList, sessions, games, { onDelete, onEd
     const details = node('details', '', 'history-game-group');
     const gameName = currentNames.get(group.gameId) ?? group.gameNameAtPlay;
     details.append(node('summary', i18n.t('session.gameGroup', { game: gameName, count: group.sessions.length })));
-    group.sessions.forEach((session) => details.append(renderSession(session, currentNames, onDelete, onEdit, onExportSession, i18n)));
+    group.sessions.forEach((session) => details.append(render(session)));
     savedList.append(details);
   });
 }

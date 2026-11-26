@@ -18,8 +18,9 @@ export function renderGameManager(container, games, actions, i18n, filters = {})
     tags.append(node('span', engine, 'game-tag scoring-tag'));
     if (game.scoreCategories?.length) tags.append(node('span', `${i18n.t('games.scoreCategories')}: ${game.scoreCategories.join(', ')}`, 'game-tag scoring-tag'));
     if (game.origin === 'builtin') tags.append(node('span', i18n.t('games.builtin'), 'game-tag builtin-tag'));
-    const actionsRow = node('div', '', 'game-actions'); actionsRow.append(iconButton('⧉', i18n.t('games.duplicate'), () => actions.duplicate(game.id)));
-    if (game.origin === 'custom') { actionsRow.append(iconButton('✎', i18n.t('games.edit'), () => actions.edit(game))); actionsRow.append(iconButton('🗑', i18n.t('games.delete'), () => actions.delete(game), 'delete')); }
+    const actionsRow = node('div', '', 'game-actions');
+    if (actions.duplicate) actionsRow.append(iconButton('⧉', i18n.t('games.duplicate'), () => actions.duplicate(game.id)));
+    if (game.origin === 'custom' && actions.edit) { actionsRow.append(iconButton('✎', i18n.t('games.edit'), () => actions.edit(game))); actionsRow.append(iconButton('🗑', i18n.t('games.delete'), () => actions.delete(game), 'delete')); }
     card.append(tags, actionsRow); grid.append(card);
   });
   container.append(grid);

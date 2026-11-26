@@ -3,6 +3,9 @@ import { latestCustomItemIds } from './data/mario-kart.js';
 import { applyStaticTranslations, createTranslator, resolveLocale, saveLocale } from './i18n.js';
 import { getScoringEngine } from './scoring/engines.js';
 import { LocalGameRepository, LocalSessionRepository, createId, exportBackup, exportSessionBackup, importBackup, migrateStorage } from './state/repositories.js';
+import { GroupGameRepository, GroupSessionRepository } from './state/cloud.js';
+import { blankPlayer, playerPicker, validateGroupPlayers } from './ui/group-players.js';
+import { installGroups } from './ui/groups.js';
 import { parseParticipants } from './utils/players.js';
 import { showView, wireTabNavigation } from './ui/navigation.js';
 import { renderHomeSummary } from './ui/home.js';
@@ -27,8 +30,14 @@ const dom = {
   tabButtons: document.querySelectorAll('.tab'),
   views: { home: byId('view-home'), 'new-session': byId('view-new-session'), history: byId('view-history'), statistics: byId('view-statistics'), games: byId('view-games') },
 };
-const gameRepository = new LocalGameRepository(localStorage);
-const sessionRepository = new LocalSessionRepository(localStorage);
+const localGames = new LocalGameRepository(localStorage);
+const localSessions = new LocalSessionRepository(localStorage);
+let gameRepository = localGames;
+let sessionRepository = localSessions;
+let group = { repository: null, snapshot: null, account: null, online: false };
+let newGroupPlayers = [];
+let editingGameRevision;
+let savingSession = false;
 const state = { activeSession: null, activeEditorState: { draft: {}, editingRoundId: null }, editingSessionId: null, games: [], sessions: [], historyGrouped: false, gameFilters: { query: '' }, draftScoreCategories: [], competitiveEntryMode: null };
 const browserLanguages = navigator.languages?.length ? navigator.languages : [navigator.language];
 let i18n = createTranslator(resolveLocale(localStorage, browserLanguages));
@@ -68,42 +77,70 @@ function historicalMarioKartPlayers() {
 
 function updateTargetRacesVisibility() {
   const marioKart = isMarioKart(findGame(state.games, dom.gameSelect.value));
-  dom.playersLabel.classList.toggle('hidden', marioKart);
-  dom.playersInput.classList.toggle('hidden', marioKart);
+  dom.playersLabel.classList.toggle('hidden', marioKart || Boolean(group.repository));
+  dom.playersInput.classList.toggle('hidden', marioKart || Boolean(group.repository));
 }
 
 function handleEditorState(engine, editorState, event = {}) {
   state.activeEditorState = editorState;
 }
 
-function renderDynamic() {
+function availablePlayers() {
+  return {
+    members: (group.snapshot?.members ?? []).filter((part) => !part.status || part.status === 'active'),
+  };
+}
+
+function renderGroupPlayers() {
+  const container = byId('group-players');
+  container.classList.toggle('hidden', !group.snapshot);
+  if (group.snapshot) playerPicker(container, { ...availablePlayers(), players: newGroupPlayers, onChange: () => {} }, i18n);
+  else container.replaceChildren();
+}
+
+function renderDynamic(renderEditor = false) {
   populateGameSelect();
   const playerNames = [...new Set(state.sessions.flatMap((session) => (session.participants ?? []).map((participant) => participant.displayName)))].sort((a, b) => a.localeCompare(b));
+  const guestNames = group.repository ? [...new Set(state.sessions.flatMap((session) => session.participants ?? [])
+    .filter((part) => !part.userId).map((part) => part.displayName))].sort((a, b) => a.localeCompare(b)) : [];
+  byId('group-guest-suggestions').replaceChildren(...guestNames.map((name) => {
+    const option = document.createElement('option');
+    option.value = name;
+    return option;
+  }));
   dom.playerSuggestions.replaceChildren(...playerNames.map((name) => { const option = document.createElement('option'); option.value = name; return option; }));
   renderHomeSummary(dom.homeSummary, state.sessions, state.games, i18n);
+  const canManageGames = !group.repository || (group.online && group.snapshot && group.account?.role === 'owner');
+  dom.addGame.classList.toggle('hidden', !canManageGames || !dom.gameForm.classList.contains('hidden'));
+  dom.gameForm.querySelectorAll('button[type=submit]').forEach((button) => { button.disabled = !canManageGames; });
+  dom.startButton.disabled = Boolean(group.repository && !group.snapshot);
   renderSavedSessions(dom.savedList, state.sessions, state.games, {
-    onDelete: async (id) => { await sessionRepository.delete(id); await refresh(); },
+    onDelete: (id, session) => run(async () => {
+      await sessionRepository.delete(group.repository ? session : id);
+      if (group.repository) await groups.changed(); else await refresh();
+    }),
+    canEdit: (session) => !group.repository || (!session.syncError && (session.createdBy === group.account.id || group.account.role === 'owner')),
     onEdit: editSavedSession,
-    onExport: () => run(exportSessions),
-    onExportSession: (sessionId) => run(() => exportSavedSession(sessionId)),
-    onImport: (file) => run(() => importSessions(file)),
+    onExport: group.repository ? null : () => run(exportSessions),
+    onExportSession: group.repository ? null : (sessionId) => run(() => exportSavedSession(sessionId)),
+    onImport: group.repository ? null : (file) => run(() => importSessions(file)),
   }, i18n, state.historyGrouped, (grouped) => {
     state.historyGrouped = grouped;
     renderDynamic();
   });
   renderStatistics(dom.statistics, state.sessions, state.games, i18n);
-  renderGameManager(dom.gamesList, state.games, {
+  renderGameManager(dom.gamesList, state.games, canManageGames ? {
     duplicate: async (id) => run(async () => {
       const copyName = (name, number) => i18n.t(number === 1 ? 'games.copy' : 'games.copyNumber', { name, number });
-      await gameRepository.duplicate(id, i18n.locale, copyName); await refresh();
+      await gameRepository.duplicate(id, i18n.locale, copyName); if (group.repository) await groups.sync(); else await refresh();
     }),
     edit: beginEdit,
     delete: async (game) => {
-      if (confirm(i18n.t('games.deleteConfirm', { game: getGameName(game, i18n.locale) }))) await run(async () => { await gameRepository.delete(game.id); await refresh(); });
+      if (confirm(i18n.t('games.deleteConfirm', { game: getGameName(game, i18n.locale) }))) await run(async () => { await gameRepository.delete(game.id, game.revision); if (group.repository) await groups.sync(); else await refresh(); });
     },
-  }, i18n, state.gameFilters);
+  } : {}, i18n, state.gameFilters);
   if (dom.editingGameId.value) dom.saveGame.textContent = i18n.t('games.saveChanges');
-  if (state.activeSession) {
+  if (renderEditor && state.activeSession) {
     const game = findGame(state.games, state.activeSession.gameId);
     const gameName = game ? getGameName(game, i18n.locale) : state.activeSession.gameNameAtPlay;
     dom.sessionTitle.textContent = i18n.t('session.title', { game: gameName });
@@ -115,7 +152,11 @@ function renderDynamic() {
 }
 
 async function refresh() {
-  [state.games, state.sessions] = await Promise.all([gameRepository.list(), sessionRepository.list()]);
+  const games = gameRepository;
+  const sessions = sessionRepository;
+  const result = await Promise.all([games.list(), sessions.list()]);
+  if (games !== gameRepository || sessions !== sessionRepository) return;
+  [state.games, state.sessions] = result;
   renderDynamic();
 }
 
@@ -124,16 +165,18 @@ async function run(action) { try { reportError(''); await action(); } catch (err
 function startSession() {
   reportError('');
   const selectedGame = findGame(state.games, dom.gameSelect.value);
-  const parsed = isMarioKart(selectedGame) ? { valid: true, participants: [] } : parseParticipants(dom.playersInput.value);
+  if (group.repository && !group.snapshot) return;
+  const parsed = group.repository ? validateGroupPlayers(newGroupPlayers)
+    : isMarioKart(selectedGame) ? { valid: true, participants: [] } : parseParticipants(dom.playersInput.value);
   if (!parsed.valid) return alert(localized(parsed.error));
   const game = selectedGame;
   if (!game) return alert(localized('errors.gameInvalid'));
   const engine = getScoringEngine(game.scoring.engineId);
   state.activeSession = {
-    schemaVersion: 3, id: createId('session'), gameId: game.id, gameNameAtPlay: getGameName(game, i18n.locale), playMode: game.playMode,
+    schemaVersion: 3, id: createId('session'), gameId: game.id, ...(group.repository ? { gameRevision: game.revision ?? null, locale: i18n.locale } : {}), gameNameAtPlay: getGameName(game, i18n.locale), playMode: game.playMode,
     scoreCategories: [...(game.scoreCategories ?? [])], categoryScoring: game.categoryScoring, participants: parsed.participants, scoring: { ...game.scoring }, entries: engine.initialEntries(), totals: {}, categoryTotals: {}, createdAt: new Date().toISOString(),
   };
-  state.activeEditorState = { draft: {}, editingRoundId: null, marioAvailablePlayers: historicalMarioKartPlayers(), marioCustomItemIds: latestCustomItemIds(state.sessions) }; state.editingSessionId = null;
+  state.activeEditorState = { draft: {}, editingRoundId: null, marioAvailablePlayers: historicalMarioKartPlayers(), marioFixedRoster: Boolean(group.repository), marioCustomItemIds: latestCustomItemIds(state.sessions) }; state.editingSessionId = null;
   dom.sessionPlayerEditor.classList.add('hidden'); dom.cancelSession.classList.remove('hidden'); dom.cancelSessionEdit.classList.add('hidden');
   dom.saveSessionButton.textContent = i18n.t('session.save');
   dom.newSessionCard.classList.add('hidden'); dom.sessionPanel.classList.remove('hidden'); dom.sessionTitle.textContent = i18n.t('session.title', { game: getGameName(game, i18n.locale) });
@@ -143,22 +186,34 @@ function startSession() {
 }
 
 async function saveActiveSession() {
-  if (!state.activeSession) return;
+  if (!state.activeSession || savingSession) return;
+  const active = state.activeSession;
+  const repository = sessionRepository;
   if (state.editingSessionId) {
-    const parsed = parseParticipants(dom.sessionPlayers.value);
+    const parsed = group.repository ? validateGroupPlayers(active.participants) : parseParticipants(dom.sessionPlayers.value);
     if (!parsed.valid) return alert(localized(parsed.error));
-    if (parsed.participants.length !== state.activeSession.participants.length) return alert(localized('errors.playerCountUnchanged'));
-    state.activeSession.participants = state.activeSession.participants.map((participant, index) => ({ ...participant, displayName: parsed.participants[index].displayName }));
+    if (parsed.participants.length !== active.participants.length) return alert(localized('errors.playerCountUnchanged'));
+    active.participants = group.repository ? parsed.participants : active.participants.map((participant, index) => ({ ...participant, displayName: parsed.participants[index].displayName }));
   }
-  const engine = getScoringEngine(state.activeSession.scoring.engineId);
-  const result = finalizeEditor(state.activeSession, engine);
+  const result = finalizeEditor(active, getScoringEngine(active.scoring.engineId));
   if (!result.valid) return alert(localized(result.error));
-  await sessionRepository.save(state.activeSession);
-  closeActiveSession(); await refresh();
-  showView('history', dom.views, dom.tabButtons);
+  savingSession = true;
+  dom.saveSessionButton.disabled = true;
+  try {
+    await repository.save(active);
+    if (state.activeSession !== active) return;
+    closeActiveSession();
+    if (group.repository) await groups.changed(); else await refresh();
+    showView('history', dom.views, dom.tabButtons);
+  } finally {
+    savingSession = false;
+    dom.saveSessionButton.disabled = false;
+  }
 }
 
 function closeActiveSession() {
+  byId('group-edit-players').classList.add('hidden');
+  byId('group-edit-players').replaceChildren();
   state.activeSession = null; state.activeEditorState = { draft: {}, editingRoundId: null }; state.editingSessionId = null;
   dom.sessionPanel.classList.add('hidden'); dom.newSessionCard.classList.remove('hidden'); dom.sessionPlayerEditor.classList.add('hidden'); dom.cancelSession.classList.add('hidden'); dom.cancelSessionEdit.classList.add('hidden'); dom.saveSessionButton.textContent = i18n.t('session.save');
 }
@@ -166,9 +221,18 @@ function closeActiveSession() {
 function editSavedSession(session) {
   state.activeSession = structuredClone(session);
   state.editingSessionId = session.id;
-  state.activeEditorState = { draft: {}, editingRoundId: null, marioAvailablePlayers: historicalMarioKartPlayers() };
+  state.activeEditorState = { draft: {}, editingRoundId: null, marioAvailablePlayers: historicalMarioKartPlayers(), marioFixedRoster: Boolean(group.repository) };
   dom.sessionPlayers.value = session.participants.map((participant) => participant.displayName).join(', ');
-  dom.sessionPlayerEditor.classList.remove('hidden'); dom.cancelSession.classList.add('hidden'); dom.cancelSessionEdit.classList.remove('hidden'); dom.newSessionCard.classList.add('hidden'); dom.sessionPanel.classList.remove('hidden');
+  dom.sessionPlayerEditor.classList.toggle('hidden', Boolean(group.repository));
+  if (group.repository) {
+    const container = byId('group-edit-players');
+    container.classList.remove('hidden');
+    playerPicker(container, {
+      ...availablePlayers(), players: state.activeSession.participants, fixed: true,
+      onChange: () => renderDynamic(true),
+    }, i18n);
+  }
+  dom.cancelSession.classList.add('hidden'); dom.cancelSessionEdit.classList.remove('hidden'); dom.newSessionCard.classList.add('hidden'); dom.sessionPanel.classList.remove('hidden');
   const engine = getScoringEngine(state.activeSession.scoring.engineId);
   dom.saveSessionButton.textContent = i18n.t('session.saveChanges');
   const editor = engine.id === 'mario-kart-8' ? renderMarioKartEditor : renderEngineEditor;
@@ -203,6 +267,7 @@ async function importSessions(file) {
 }
 
 function beginEdit(game) {
+  editingGameRevision = game.revision;
   dom.editingGameId.value = game.id; dom.gameName.value = game.name;
   dom.playMode.value = game.playMode ?? 'competitive'; state.competitiveEntryMode = null; state.draftScoreCategories = [...(game.scoreCategories ?? [])]; dom.categoryScoring.value = game.categoryScoring ?? 'per-round'; renderScoreCategoryInputs();
   dom.entryMode.value = game.scoring.engineId; dom.ranking.value = game.scoring.ranking;
@@ -211,6 +276,7 @@ function beginEdit(game) {
 }
 
 function clearGameForm() {
+  editingGameRevision = undefined;
   dom.gameForm.reset(); dom.editingGameId.value = ''; state.competitiveEntryMode = null; state.draftScoreCategories = []; renderScoreCategoryInputs(); updateRankingControl(); dom.saveGame.textContent = i18n.t('games.create'); dom.cancelEdit.classList.add('hidden'); dom.gameForm.classList.add('hidden'); dom.addGame.classList.remove('hidden');
 }
 
@@ -251,9 +317,9 @@ function updateGameModeControls() {
 dom.gameForm.addEventListener('submit', (event) => {
   event.preventDefault();
   run(async () => {
-    const data = { name: dom.gameName.value, playMode: dom.playMode.value, scoreCategories: state.draftScoreCategories, categoryScoring: dom.categoryScoring.value, scoring: { engineId: dom.entryMode.value, ranking: dom.entryMode.value === 'winner-only' ? 'selected' : dom.ranking.value } };
+    const data = { revision: editingGameRevision, name: dom.gameName.value, playMode: dom.playMode.value, scoreCategories: state.draftScoreCategories, categoryScoring: dom.categoryScoring.value, scoring: { engineId: dom.entryMode.value, ranking: dom.entryMode.value === 'winner-only' ? 'selected' : dom.ranking.value } };
     if (dom.editingGameId.value) await gameRepository.update(dom.editingGameId.value, data); else await gameRepository.create(data);
-    clearGameForm(); await refresh();
+    clearGameForm(); if (group.repository) await groups.sync(); else await refresh();
   });
 });
 dom.cancelEdit.addEventListener('click', clearGameForm);
@@ -280,7 +346,34 @@ dom.language.addEventListener('click', () => {
   applyStaticTranslations(document, i18n);
   updateLanguageButton();
   updateRankingControl();
-  renderDynamic();
+  renderGroupPlayers();
+  groups.draw();
+  renderDynamic(true);
+});
+
+const groups = installGroups({
+  i18n: () => i18n,
+  report: (error) => reportError(localized(error)),
+  canSwitch: () => !savingSession && (!state.activeSession || confirm(i18n.t('session.cancelConfirm'))),
+  async show(context) {
+    const previous = group;
+    group = context;
+    const switched = previous.repository?.groupId !== group.repository?.groupId
+      || previous.repository?.accountId !== group.repository?.accountId;
+    if (switched) {
+      closeActiveSession();
+      clearGameForm();
+      state.sessions = [];
+      state.games = [];
+      dom.playersInput.value = '';
+      newGroupPlayers = [blankPlayer(), blankPlayer()];
+      gameRepository = group.repository ? new GroupGameRepository(group.repository) : localGames;
+      sessionRepository = group.repository ? new GroupSessionRepository(group.repository) : localSessions;
+      renderDynamic();
+    }
+    if (switched || JSON.stringify(previous.snapshot?.members) !== JSON.stringify(group.snapshot?.members)) renderGroupPlayers();
+    await refresh();
+  },
 });
 
 await run(async () => {
@@ -288,7 +381,7 @@ await run(async () => {
   updateLanguageButton();
   const migration = await migrateStorage(localStorage);
   if (migration.error) reportError(localized(migration.error, migration.parameters));
-  await refresh();
+  await groups.start();
 });
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('./service-worker.js').catch(() => { /* The app works without offline support. */ });
 showView('home', dom.views, dom.tabButtons);

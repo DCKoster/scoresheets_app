@@ -3,6 +3,22 @@
   "type": "module",
   "scripts": {
     "start": "python3 -m http.server 8000 --directory web_app",
-    "test": "node --test"
+    "test": "node --test",
+    "dev": "wrangler dev",
+    "db:local": "wrangler d1 migrations apply DB --local",
+    "deploy:preview": "wrangler deploy --env preview",
+    "build": "wrangler deploy --env preview --dry-run --minify --outdir dist/worker",
+    "db:preview": "wrangler d1 migrations apply DB --env preview --remote",
+    "owner:recover": "node scripts/recover-owner.js",
+    "verify:cloud": "node scripts/verify-cloud.js",
+    "verify:browser": "node scripts/verify-browser.js",
+    "verify:cpu": "node scripts/verify-cpu.js"
+  },
+  "devDependencies": {
+    "playwright": "1.65.1",
+    "wrangler": "4.165.0"
+  },
+  "engines": {
+    "node": ">=22.12.0"
   }
 }

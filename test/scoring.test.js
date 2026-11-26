@@ -37,6 +37,25 @@ test('numeric engines support named score categories and aggregate totals', () =
   assert.deepEqual(finalTotalEngine.calculateTotals({ values: final.entry }, players, categories), { a: 6, b: 9 });
 });
 
+test('round scorecard normalizes entries and keeps the existing totals and validation', () => {
+  const categories = ['Red', 'Blue'];
+  const rounds = [
+    { id: 'r1', scores: { a: { Red: '2 * 3', Blue: 2.5 }, b: { Red: '-2', Blue: 4 }, extra: 50 } },
+    { id: 'r2', scores: { a: { Red: 1, Blue: -3 }, b: { Red: '1 / 2', Blue: '0' } } },
+  ];
+  const entries = { rounds: rounds.map(({ id, scores }) => ({
+    id, scores: roundSumEngine.validateEntry(scores, players, categories).entry,
+  })) };
+  assert.deepEqual(roundSumEngine.scorecard(rounds, players, categories), {
+    valid: true,
+    entries: { roundScores: [['r1', 6, 2.5, -2, 4], ['r2', 1, -3, 0.5, 0]] },
+    totals: roundSumEngine.calculateTotals(entries, players, categories),
+    categoryTotals: roundSumEngine.calculateCategoryTotals(entries, players, categories),
+  });
+  assert.deepEqual(roundSumEngine.scorecard([{ id: 'invalid', scores: { a: '1 / 0', b: 4 } }], players),
+    { valid: false, error: 'errors.scoreFormula' });
+});
+
 test('winner-only engine accepts multiple winners and legacy results', () => {
   assert.equal(winnerOnlyEngine.validateSession({}, players).valid, false);
   assert.equal(winnerOnlyEngine.validateSession({ winnerIds: [] }, players).valid, true);

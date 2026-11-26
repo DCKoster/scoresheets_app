@@ -21,6 +21,20 @@ test('statistics groups trimmed, case-insensitive player names and calculates av
   ]);
 });
 
+test('group statistics count linked accounts across name changes and keep guests separate', () => {
+  const first = session('one', 'highest', { Alex: 10, ' alex ': 2 });
+  const second = session('two', 'highest', { Alexandra: 6, ALEX: 4 });
+  for (const match of [first, second]) {
+    match.participants[0].userId = 'account-1';
+    match.participants[1].userId = null;
+  }
+  const result = calculateStatistics([first, second]);
+  assert.deepEqual(result.players.map(({ key, gamesPlayed, averageScore }) => ({ key, gamesPlayed, averageScore })), [
+    { key: 'member:account-1', gamesPlayed: 2, averageScore: 8 },
+    { key: 'guest:alex', gamesPlayed: 2, averageScore: 3 },
+  ]);
+});
+
 test('statistics respects lowest ranking and counts every tied winner', () => {
   const result = calculateStatistics([session('one', 'lowest', { A: 3, B: 3, C: 5 })]);
   assert.deepEqual(result.players.map(({ displayName, wins }) => [displayName, wins]), [['A', 1], ['B', 1], ['C', 0]]);

@@ -15,12 +15,13 @@ test('the PWA declares a manifest and versioned offline shell', async () => {
   assert.match(html, /manifest\.webmanifest/);
   assert.match(html, /DK <span aria-hidden="true">\/<\/span> Scoresheets/);
   assert.match(html, /href="https:\/\/dckoster\.com"/);
-  assert.match(worker, /CACHE_VERSION = 'scoresheets-shell-v13'/);
+  assert.match(worker, /CACHE_VERSION = 'scoresheets-shell-v20'/);
   assert.match(worker, /const APP_SHELL = \[\s*'\/'/);
   assert.match(worker, /CACHE_VERSION = 'scoresheets-shell-v\d+'/);
   assert.match(worker, /'\.\/src\/main\.js'/);
   assert.match(worker, /'\.\/src\/data\/mario-kart\.js'/);
   assert.match(worker, /'\.\/src\/ui\/mario-kart\.js'/);
+  assert.ok(worker.indexOf("url.pathname.startsWith('/api/')") < worker.indexOf('event.respondWith'));
   assert.match(worker, /request\.mode === 'navigate'/);
   assert.match(worker, /caches\.delete/);
   assert.match(worker, /!response\.redirected/);
