@@ -1,3 +1,4 @@
+import { groupPlayerKey } from './group-players.js';
 import { getGameName } from '../data/games.js';
 import { MARIO_KART_CC_OPTIONS, MARIO_KART_ITEMS, MARIO_KART_ITEM_PRESETS, itemPresetName } from '../data/mario-kart.js';
 
@@ -68,7 +69,7 @@ function normalizedPlayerKeys(values = []) {
 }
 
 function sessionPlayerKeys(session) {
-  return new Set((session?.participants ?? []).map((participant) => normalizePlayerName(participant.displayName)).filter(Boolean));
+  return new Set((session?.participants ?? []).map((participant) => groupPlayerKey(participant)).filter(Boolean));
 }
 
 export function filterStatisticsSessions(sessions = [], filters = {}) {
@@ -111,12 +112,12 @@ export function calculateStatistics(sessions = [], filters = {}) {
     };
 
     if (session.scoring?.engineId === 'winner-only') {
-      const participants = session.participants.filter((participant) => normalizePlayerName(participant?.displayName));
+      const participants = session.participants.filter((participant) => groupPlayerKey(participant));
       const winnerIds = Array.isArray(session.entries?.winnerIds) ? session.entries.winnerIds : session.entries?.winnerId == null ? [] : [session.entries.winnerId];
       if ((!Object.hasOwn(session.entries ?? {}, 'winnerIds') && !Object.hasOwn(session.entries ?? {}, 'winnerId')) || winnerIds.some((id) => !participants.some((participant) => participant.id === id))) continue;
       const gameSummary = ensureGame();
       for (const participant of participants) {
-        const key = normalizePlayerName(participant.displayName);
+        const key = groupPlayerKey(participant);
         if (playerFilter.size && !playerFilter.has(key)) continue;
         let summary = players.get(key);
         if (!summary) {
@@ -138,13 +139,13 @@ export function calculateStatistics(sessions = [], filters = {}) {
 
     const scores = session.participants
       .map((participant) => ({ participant, score: scoreFor(session, participant) }))
-      .filter(({ participant, score }) => normalizePlayerName(participant?.displayName) && score !== null);
+      .filter(({ participant, score }) => groupPlayerKey(participant) && score !== null);
     const winningScore = winnerScore(scores, session?.scoring?.ranking);
     if (winningScore === null) continue;
 
     const gameSummary = ensureGame();
     for (const { participant, score } of scores) {
-      const key = normalizePlayerName(participant.displayName);
+      const key = groupPlayerKey(participant);
       if (playerFilter.size && !playerFilter.has(key)) continue;
       let summary = players.get(key);
       if (!summary) {
@@ -228,7 +229,7 @@ export function calculateChartData(sessions = [], gameId = '', locale = 'en') {
       ranking: session.scoring?.ranking,
       participants: session.participants ?? [],
       scores: Object.fromEntries((session.participants ?? []).map((participant) => [
-        normalizePlayerName(participant.displayName), Number(session.totals?.[participant.id]),
+        groupPlayerKey(participant), Number(session.totals?.[participant.id]),
       ]).filter(([, score]) => Number.isFinite(score))),
       rounds: session.scoring?.engineId === 'round-sum'
         ? (session.entries?.rounds ?? []).map((round) => Object.fromEntries((session.participants ?? []).map((participant) => {
@@ -236,11 +237,11 @@ export function calculateChartData(sessions = [], gameId = '', locale = 'en') {
           const score = value && typeof value === 'object'
             ? Object.values(value).reduce((total, categoryScore) => total + (Number(categoryScore) || 0), 0)
             : Number(value);
-          return [normalizePlayerName(participant.displayName), Number.isFinite(score) ? score : null];
+          return [groupPlayerKey(participant), Number.isFinite(score) ? score : null];
         })))
         : [],
     }));
-  const playerNames = [...new Map(selectedSessions.flatMap((item) => item.participants.map((participant) => [normalizePlayerName(participant.displayName), String(participant.displayName).trim()]))).entries()];
+  const playerNames = [...new Map(selectedSessions.flatMap((item) => item.participants.map((participant) => [groupPlayerKey(participant), String(participant.displayName).trim()]))).entries()];
   return { sessions: selectedSessions, players: playerNames.map(([key, displayName]) => ({ key, displayName })) };
 }
 
@@ -254,7 +255,7 @@ export function calculateGameAnalytics(sessions = [], gameId = '', locale = 'en'
   data.sessions.forEach((item) => {
     const winnerIds = sessions.find((session) => session.id === item.id)?.entries;
     const winners = new Set(Array.isArray(winnerIds?.winnerIds) ? winnerIds.winnerIds : winnerIds?.winnerId == null ? [] : [winnerIds.winnerId]);
-    const winnerKeys = new Set((sessions.find((session) => session.id === item.id)?.participants ?? []).filter((participant) => winners.has(participant.id)).map((participant) => normalizePlayerName(participant.displayName)));
+    const winnerKeys = new Set((sessions.find((session) => session.id === item.id)?.participants ?? []).filter((participant) => winners.has(participant.id)).map((participant) => groupPlayerKey(participant)));
     players.forEach((player) => {
       if (winnerKeys.has(player.key)) winTotals[player.key] += 1;
       cumulativeWins[player.key].push(winTotals[player.key]);
@@ -273,9 +274,9 @@ export function winnerPlayerKeys(session) {
   const participants = session?.participants ?? [];
   if (session?.scoring?.engineId === 'winner-only') {
     const ids = Array.isArray(session.entries?.winnerIds) ? session.entries.winnerIds : session.entries?.winnerId == null ? [] : [session.entries.winnerId];
-    return new Set(participants.filter((participant) => ids.includes(participant.id)).map((participant) => normalizePlayerName(participant.displayName)));
+    return new Set(participants.filter((participant) => ids.includes(participant.id)).map((participant) => groupPlayerKey(participant)));
   }
-  const scores = participants.map((participant) => ({ key: normalizePlayerName(participant.displayName), score: scoreFor(session, participant) })).filter((item) => item.key && item.score !== null);
+  const scores = participants.map((participant) => ({ key: groupPlayerKey(participant), score: scoreFor(session, participant) })).filter((item) => item.key && item.score !== null);
   const best = winnerScore(scores, session?.scoring?.ranking);
   return new Set(scores.filter((item) => item.score === best).map((item) => item.key));
 }
@@ -286,16 +287,16 @@ export function calculateRoundAnalytics(sessions = [], gameId = '', filters = {}
   const summaries = new Map(); let leadChanges = 0; let analyzedSessions = 0;
   const ensure = (key, displayName) => { if (!summaries.has(key)) summaries.set(key, { key, displayName, roundScores: [], halfwayLeads: 0, halfwayWins: 0, comebackWins: 0 }); return summaries.get(key); };
   chart.sessions.filter((session) => session.rounds.length).forEach((session) => {
-    const visiblePlayers = session.participants.map((participant) => ({ key: normalizePlayerName(participant.displayName), displayName: String(participant.displayName).trim() })).filter((player) => player.key && (!selected.size || selected.has(player.key)));
+    const visiblePlayers = session.participants.map((participant) => ({ key: groupPlayerKey(participant), displayName: String(participant.displayName).trim() })).filter((player) => player.key && (!selected.size || selected.has(player.key)));
     if (!visiblePlayers.length) return;
     analyzedSessions += 1;
-    const cumulative = Object.fromEntries(session.participants.map((participant) => [normalizePlayerName(participant.displayName), 0]));
+    const cumulative = Object.fromEntries(session.participants.map((participant) => [groupPlayerKey(participant), 0]));
     let previousLeaders = '';
     let halfwayLeaders = new Set();
     session.rounds.forEach((round, index) => {
       Object.entries(round).forEach(([key, score]) => { if (Number.isFinite(score)) cumulative[key] = (cumulative[key] ?? 0) + score; });
       visiblePlayers.forEach((player) => { const score = round[player.key]; if (Number.isFinite(score)) ensure(player.key, player.displayName).roundScores.push(score); });
-      const ranked = session.participants.map((participant) => normalizePlayerName(participant.displayName)).filter((key) => Number.isFinite(cumulative[key]));
+      const ranked = session.participants.map((participant) => groupPlayerKey(participant)).filter((key) => Number.isFinite(cumulative[key]));
       const best = ranked.length ? (session.ranking === 'lowest' ? Math.min(...ranked.map((key) => cumulative[key])) : Math.max(...ranked.map((key) => cumulative[key]))) : null;
       const leaders = ranked.filter((key) => cumulative[key] === best).sort(); const leaderKey = leaders.join('|');
       if (index && leaderKey !== previousLeaders) leadChanges += 1;
@@ -320,7 +321,7 @@ export function calculateRoundAnalytics(sessions = [], gameId = '', filters = {}
 export function marioKartRecords(sessions) {
   const records = [];
   sessions.filter((session) => session?.scoring?.engineId === 'mario-kart-8').forEach((session) => {
-    const names = new Map((session.participants ?? []).map((participant) => [participant.id, participant.displayName]));
+    const participants = new Map((session.participants ?? []).map((participant) => [participant.id, participant]));
     const totals = session.totals ?? {};
     const totalScores = (session.participants ?? [])
       .map((participant) => Number(totals[participant.id]))
@@ -332,9 +333,10 @@ export function marioKartRecords(sessions) {
     (session.entries?.races ?? []).forEach((race, raceIndex) => {
       const raceKey = `${session.id}:${race.id ?? raceIndex}`;
       race.participantIds?.forEach((id) => {
-        if (!names.has(id)) return;
+        const participant = participants.get(id);
+        if (!participant) return;
         records.push({
-          player: names.get(id), playerKey: normalizePlayerName(names.get(id)),
+          player: participant.displayName, playerKey: groupPlayerKey(participant),
           sessionId: session.id, raceKey, createdAt: session.createdAt, sessionWon: sessionWinners.has(id),
           cc: race.cc, itemSet: race.itemSet, itemSetName: itemPresetName(race.itemSet), itemIds: race.itemIds ?? [],
           placement: Number(race.placements?.[id]), points: Number(race.points?.[id] ?? 0),
@@ -687,7 +689,7 @@ function renderNormalCharts(container, sessions, statistics, games, i18n, global
       if (!roundSessions.length) { trendContent.append(node('p', i18n.t('statistics.noNumericScores'))); return; }
       const sessionLabel = node('label', i18n.t('statistics.chooseSession')); const sessionSelect = document.createElement('select'); sessionLabel.append(sessionSelect); roundSessions.forEach((session) => { const option = node('option', session.label); option.value = session.id; sessionSelect.append(option); }); sessionSelect.value = roundSessions.at(-1).id;
       const explorer = node('div', '', 'statistics-session-explorer'); trendContent.append(node('h3', i18n.t('statistics.sessionExplorer')), sessionLabel, sessionSelect, explorer);
-      const renderSession = () => { explorer.replaceChildren(); const selectedSession = roundSessions.find((session) => session.id === sessionSelect.value); if (!selectedSession) return; const players = selectedSession.participants.map((participant) => ({ key: normalizePlayerName(participant.displayName), displayName: String(participant.displayName).trim() })).filter((player) => !selected.size || selected.has(player.key));
+      const renderSession = () => { explorer.replaceChildren(); const selectedSession = roundSessions.find((session) => session.id === sessionSelect.value); if (!selectedSession) return; const players = selectedSession.participants.map((participant) => ({ key: groupPlayerKey(participant), displayName: String(participant.displayName).trim() })).filter((player) => !selected.size || selected.has(player.key));
         renderLineChart(explorer, i18n.t('statistics.chartScoreProgression'), players.map((player) => { let total = 0; return { name: player.displayName, labels: selectedSession.rounds.map((_, index) => String(index + 1)), points: selectedSession.rounds.map((round) => { const score = round[player.key]; if (!Number.isFinite(score)) return null; total += score; return total; }) }; }), i18n, i18n.t('statistics.chartRoundAxis'));
         renderGroupedRoundBars(explorer, i18n.t('statistics.chartScorePerRound'), players, selectedSession.rounds, i18n); renderRoundStandings(explorer, i18n.t('statistics.standingsByRound'), players, selectedSession.rounds, i18n, selectedSession.ranking); };
       sessionSelect.addEventListener('change', renderSession); renderSession();
@@ -769,7 +771,7 @@ function renderStatisticsDashboard(container, sessions, games, i18n, filters) {
   overviewPanel.append(overview);
   const selectedKeys = normalizedPlayerKeys(filters.playerKeys);
   if (insights.headToHead) {
-    const names = new Map(sessions.flatMap((session) => (session.participants ?? []).map((participant) => [normalizePlayerName(participant.displayName), String(participant.displayName).trim()])));
+    const names = new Map(sessions.flatMap((session) => (session.participants ?? []).map((participant) => [groupPlayerKey(participant), String(participant.displayName).trim()])));
     const head = node('section', '', 'statistics-head-to-head'); head.append(node('h3', i18n.t('statistics.headToHead')));
     const comparison = node('div', '', 'statistics-overview'); [[i18n.t('statistics.sharedSessions'), insights.headToHead.sharedSessions], [names.get(insights.headToHead.first) ?? insights.headToHead.first, insights.headToHead.firstWins], [names.get(insights.headToHead.second) ?? insights.headToHead.second, insights.headToHead.secondWins], [i18n.t('statistics.tiesNoWinner'), insights.headToHead.ties]].forEach(([label, value]) => { const item = node('div', '', 'statistics-overview-item'); item.append(node('strong', String(value)), node('span', label)); comparison.append(item); }); head.append(comparison); overviewPanel.append(head);
   } else overviewPanel.append(node('p', selectedKeys.length ? i18n.t('statistics.selectTwoPlayers') : i18n.t('statistics.headToHeadHint'), 'statistics-chart-note'));
@@ -810,7 +812,7 @@ function localDayBoundary(value, end = false) {
 /** Render the Statistics tab using the already-loaded session history. */
 export function renderStatistics(container, sessions, games, i18n) {
   container.replaceChildren();
-  const playerNames = [...new Map(sessions.flatMap((session) => (session.participants ?? []).map((participant) => [normalizePlayerName(participant.displayName), String(participant.displayName).trim()]))).entries()].sort((a, b) => a[1].localeCompare(b[1]));
+  const playerNames = [...new Map(sessions.flatMap((session) => (session.participants ?? []).map((participant) => [groupPlayerKey(participant), String(participant.displayName).trim()]))).entries()].sort((a, b) => a[1].localeCompare(b[1]));
   const filters = { playerKeys: [], sharedOnly: false, from: null, to: null };
   const controls = node('section', '', 'statistics-filter-panel'); controls.setAttribute('aria-label', i18n.t('statistics.filters'));
   const filterGrid = node('div', '', 'statistics-global-filters');

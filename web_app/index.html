@@ -25,6 +25,53 @@
         <a href="https://dckoster.com" data-i18n="family.allProjects">All projects</a>
       </div>
 
+      <section class="card cloud-panel" aria-label="Groups" data-i18n-aria-label="cloud.groups">
+        <div class="cloud-controls">
+          <span id="group-account"></span>
+          <label id="group-choice-label" for="group-choice" class="visually-hidden" data-i18n="cloud.groups">Groups</label>
+          <select id="group-choice" class="hidden"></select>
+          <button id="group-show-login" class="secondary" type="button" data-i18n="cloud.signIn">Sign in</button>
+          <button id="group-admin-toggle" class="secondary hidden" type="button" aria-expanded="false" aria-controls="group-admin" data-i18n="cloud.manage">Manage groups</button>
+          <button id="group-refresh" class="secondary hidden" type="button" data-i18n="cloud.syncNow">Sync now</button>
+          <button id="group-sign-out" class="secondary hidden" type="button" data-i18n="cloud.signOut">Sign out</button>
+        </div>
+        <p id="group-status" role="status"></p>
+        <details id="group-pending" class="hidden"></details>
+        <form id="group-login" class="hidden">
+          <label for="group-username" data-i18n="cloud.username">Username</label>
+          <input id="group-username" name="username" maxlength="80" autocomplete="username" autocapitalize="none" spellcheck="false" required />
+          <label for="group-code" data-i18n="cloud.loginCode">Login code</label>
+          <input id="group-code" name="code" type="password" maxlength="32" autocomplete="current-password" required />
+          <div class="button-row">
+            <button type="submit" data-i18n="cloud.signIn">Sign in</button>
+            <button id="group-cancel-login" class="secondary" type="button" data-i18n="games.cancel">Cancel</button>
+          </div>
+        </form>
+        <div id="group-issued" class="hidden">
+          <label for="group-issued-code" data-i18n="cloud.shareCode">Copy this login code now and share it privately with the username.</label>
+          <p id="group-issued-username"></p>
+          <input id="group-issued-code" readonly autocomplete="off" spellcheck="false" />
+          <button id="group-dismiss-code" class="secondary" type="button" data-i18n="cloud.dismissCode">Hide code</button>
+        </div>
+        <div id="group-admin" class="hidden">
+          <form id="group-create">
+            <label for="group-name" data-i18n="cloud.groupName">Group name</label>
+            <input id="group-name" name="name" maxlength="100" required />
+            <button type="submit" data-i18n="cloud.createGroup">Create group</button>
+          </form>
+          <form id="group-members-form" class="hidden">
+            <label for="member-username" data-i18n="cloud.username">Username</label>
+            <input id="member-username" name="username" maxlength="80" pattern="[A-Za-z0-9][A-Za-z0-9_.\-]{0,79}" autocapitalize="none" spellcheck="false" required />
+            <label for="member-name" data-i18n="cloud.newMemberName">Display name for new accounts</label>
+            <input id="member-name" name="name" maxlength="100" />
+            <label for="member-email" data-i18n="cloud.optionalEmail">Email (optional)</label>
+            <input id="member-email" name="email" type="email" maxlength="254" />
+            <button type="submit" data-i18n="cloud.addMember">Add member</button>
+          </form>
+          <ul id="group-members"></ul>
+        </div>
+      </section>
+
       <nav class="tabs" aria-label="Main views" data-i18n-aria-label="nav.label">
         <button class="tab is-active" data-view="home" data-i18n="nav.home" type="button">Home</button>
         <button class="tab" data-view="new-session" data-i18n="nav.newSession" type="button">New Session</button>
@@ -50,13 +97,16 @@
           <label id="players-label" for="players" data-i18n="session.players">Players (comma separated)</label>
           <input id="players" type="text" list="player-suggestions" placeholder="Daniel, Illy" />
           <datalist id="player-suggestions"></datalist>
+          <datalist id="group-guest-suggestions"></datalist>
 
+          <div id="group-players" class="hidden"></div>
           <button id="start-session" data-i18n="session.start" type="button">Start session</button>
         </section>
 
         <section class="card hidden" id="session-panel">
           <h2 id="session-title"></h2>
           <div id="session-player-editor" class="hidden"><label for="session-players" data-i18n="session.players">Players (comma separated)</label><input id="session-players" type="text" /></div>
+          <div id="group-edit-players" class="hidden"></div>
           <div id="entry-panel"></div>
           <div class="button-row"><button id="save-session" class="accent" data-i18n="session.save" type="button">Save session</button><button id="cancel-session" class="secondary" data-i18n="session.cancel" type="button">Cancel session</button><button id="cancel-session-edit" class="secondary hidden" data-i18n="session.cancelEdit" type="button">Cancel</button></div>
         </section>

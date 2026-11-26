@@ -364,3 +364,15 @@ summary { border-radius: 4px; }
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
   button:active, .game-card:hover, .mario-item-button.is-selected { transform: none; }
 }
+
+.cloud-panel { margin-block: 1rem; }
+.cloud-controls { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+.cloud-controls select { width: auto; max-width: 100%; }
+.cloud-panel form { max-width: 28rem; margin-top: 1rem; }
+.cloud-panel form button[type=submit] { margin-top: .4rem; }
+.cloud-panel [role=status]:empty, .cloud-panel ul:empty { display: none; }
+.cloud-panel li, .pending-change { margin-block: .45rem; }
+.cloud-panel li button, .pending-change button { margin: .2rem; }
+.cloud-players { margin-block: .75rem; }
+.cloud-player-row { display: flex; align-items: center; gap: .4rem; margin-bottom: .35rem; }
+.cloud-player-row input, .cloud-player-row select { flex: 1; min-width: 0; }

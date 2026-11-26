@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'scoresheets-shell-v13';
+const CACHE_VERSION = 'scoresheets-shell-v20';
 
 const APP_SHELL = [
   '/',
@@ -11,8 +11,11 @@ const APP_SHELL = [
   './src/data/mario-kart.js',
   './src/utils/players.js',
   './src/state/repositories.js',
+  './src/state/cloud.js',
   './src/scoring/engines.js',
   './src/ui/navigation.js',
+  './src/ui/groups.js',
+  './src/ui/group-players.js',
   './src/ui/home.js',
   './src/ui/history.js',
   './src/ui/statistics.js',
@@ -62,6 +65,8 @@ self.addEventListener('fetch', (event) => {
   if (url.origin !== self.location.origin) {
     return;
   }
+
+  if (url.pathname === '/api' || url.pathname.startsWith('/api/')) return;
 
   // Navigation: serve the cached application shell.
   if (request.mode === 'navigate') {

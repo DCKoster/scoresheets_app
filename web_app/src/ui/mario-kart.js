@@ -82,7 +82,7 @@ function renderMarioKartSetup(panel, session, engine, reportError, i18n, editorS
       const row = element('label', undefined, 'mario-roster-row'); const checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.checked = true; checkbox.addEventListener('change', () => { if (!checkbox.checked) session.participants = session.participants.filter((item) => item.id !== participant.id); }); row.append(checkbox, element('span', participant.displayName)); roster.append(row);
     });
   };
-  renderRoster(); setup.append(roster);
+  if (!editorState.marioFixedRoster) { renderRoster(); setup.append(roster); }
   const confirm = element('button', i18n.t('marioKart.confirmSetup'), 'accent'); confirm.type = 'button'; confirm.addEventListener('click', () => {
     if (session.participants.length < 2) return reportError('errors.marioKartPlayersRequired');
     session.marioKartSetup = { cc: draft.cc, itemSet: draft.itemSet, itemIds: [...draft.itemIds] };
@@ -182,6 +182,7 @@ export function renderMarioKartEditor(panel, session, engine, reportError, i18n,
       input.addEventListener('change', () => { draft.participantIds = [...roster.querySelectorAll('input:checked')].map((item) => item.value); renderPlacementInputs(placements, draft, session, i18n); setState(); });
       input.value = participant.id; label.append(input, element('span', participant.displayName)); roster.append(label);
     });
+    if (editorState.marioFixedRoster) return;
     const addRow = element('div', undefined, 'mario-add-player'); const input = element('input'); input.placeholder = i18n.t('marioKart.newPlayer'); const button = element('button', i18n.t('marioKart.addPlayer'), 'secondary'); button.type = 'button';
     const add = () => { const name = input.value.trim(); if (!name) return; if (session.participants.some((participant) => participant.displayName.toLocaleLowerCase() === name.toLocaleLowerCase())) return reportError('errors.playersUnique'); const participant = { id: createId('participant'), displayName: name }; session.participants.push(participant); draft.participantIds.push(participant.id); input.value = ''; renderRoster(); renderPlacementInputs(placements, draft, session, i18n); setState(); };
     button.addEventListener('click', add); input.addEventListener('keydown', (event) => { if (event.key === 'Enter') { event.preventDefault(); add(); } }); addRow.append(input, button); roster.append(addRow);
@@ -203,7 +204,7 @@ export function renderMarioKartEditor(panel, session, engine, reportError, i18n,
     session.entries.races.forEach((race, index) => {
       const row = element('div', undefined, 'round-row'); const names = session.participants.filter((participant) => race.participantIds.includes(participant.id)).map((participant) => `${participant.displayName} ${race.placements[participant.id]} (${race.points[participant.id]})`).join(' | ');
       row.append(element('span', i18n.t('marioKart.raceSummary', { number: index + 1, track: race.track || i18n.t('marioKart.trackNotSet'), cc: i18n.t(`marioKart.cc.${race.cc}`), itemSet: itemPresetName(race.itemSet), scores: names })));
-      const edit = element('button', i18n.t('session.editRound'), 'secondary'); edit.type = 'button'; edit.addEventListener('click', () => { editingRaceId = race.id; draft = draftFromRace(race, session.participants); setState(); renderMarioKartEditor(panel, session, engine, reportError, i18n, { marioDraft: draft, marioEditingRaceId: editingRaceId }, onStateChange); });
+      const edit = element('button', i18n.t('session.editRound'), 'secondary'); edit.type = 'button'; edit.addEventListener('click', () => { editingRaceId = race.id; draft = draftFromRace(race, session.participants); setState(); renderMarioKartEditor(panel, session, engine, reportError, i18n, { ...editorState, marioDraft: draft, marioEditingRaceId: editingRaceId }, onStateChange); });
       row.append(edit); races.append(row);
     });
     renderMarioTotals(totals, session, engine, i18n);
@@ -215,7 +216,7 @@ export function renderMarioKartEditor(panel, session, engine, reportError, i18n,
     if (!result.valid) return reportError(result.error);
     if (editingRaceId) { const race = session.entries.races.find((item) => item.id === editingRaceId); if (race) Object.assign(race, result.entry); }
     else session.entries.races.push(result.entry);
-    editingRaceId = null; draft = draftFromRace(null, session.participants); setState(); onStateChange({ ...editorState, marioDraft: draft, marioEditingRaceId: null }, { raceAdded: !wasEditing }); renderMarioKartEditor(panel, session, engine, reportError, i18n, { marioDraft: draft }, onStateChange);
+    editingRaceId = null; draft = draftFromRace(null, session.participants); setState(); onStateChange({ ...editorState, marioDraft: draft, marioEditingRaceId: null }, { raceAdded: !wasEditing }); renderMarioKartEditor(panel, session, engine, reportError, i18n, { ...editorState, marioDraft: draft, marioEditingRaceId: null }, onStateChange);
   });
-  cancel.addEventListener('click', () => { editingRaceId = null; draft = draftFromRace(null, session.participants); setState(); renderMarioKartEditor(panel, session, engine, reportError, i18n, { marioDraft: draft }, onStateChange); });
+  cancel.addEventListener('click', () => { editingRaceId = null; draft = draftFromRace(null, session.participants); setState(); renderMarioKartEditor(panel, session, engine, reportError, i18n, { ...editorState, marioDraft: draft, marioEditingRaceId: null }, onStateChange); });
 }

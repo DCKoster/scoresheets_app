@@ -1,14 +1,27 @@
 import { MARIO_KART_CC_OPTIONS, MARIO_KART_ITEMS, MARIO_KART_ITEM_PRESETS, MARIO_KART_POINTS, MARIO_KART_TRACKS } from '../data/mario-kart.js';
 
 function parseNumber(value) {
-  if (String(value).trim() === '') return { valid: false, error: 'errors.scoreRequired' };
+  if (typeof value === 'number') return Number.isFinite(value) ? { valid: true, value } : { valid: false, error: 'errors.scoreFinite' };
+  if (typeof value !== 'string' || value.trim() === '') return { valid: false, error: 'errors.scoreRequired' };
   const number = Number(value);
   return Number.isFinite(number) ? { valid: true, value: number } : { valid: false, error: 'errors.scoreFinite' };
 }
 
+function isFormulaNumber(value) {
+  return typeof value === 'number' && (value === 0 || (Math.abs(value) >= 1e-6 && Math.abs(value) < 1e21));
+}
+
 function parseFormula(value) {
+  // Bypass the parser for numbers with a decimal representation in its grammar.
+  if (isFormulaNumber(value)) {
+    return { valid: true, value: value || 0 };
+  }
   const source = String(value).trim();
   if (!source) return { valid: false, error: 'errors.scoreRequired' };
+  if (/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(source)) {
+    const number = Number(source);
+    return Number.isFinite(number) ? { valid: true, value: number } : { valid: false, error: 'errors.scoreFormula' };
+  }
   let index = 0;
   const skipSpaces = () => { while (/\s/.test(source[index] ?? '')) index += 1; };
   const take = (character) => {
@@ -86,12 +99,16 @@ function parseCategoryScores(values, participants, categories, parser) {
   return { valid: true, entry: result };
 }
 
+function sumPlayerScores(value, categories) {
+  if (!categories.length || !value || typeof value !== 'object') return Number(value) || 0;
+  let total = 0;
+  for (const category of categories) total += Number(value[category]) || 0;
+  return total;
+}
+
 function aggregateCategoryScores(source, participants, categories) {
   return participants.reduce((totals, participant) => {
-    const value = source?.[participant.id];
-    totals[participant.id] = categories.length && value && typeof value === 'object'
-      ? categories.reduce((sum, category) => sum + (Number(value[category]) || 0), 0)
-      : Number(value) || 0;
+    totals[participant.id] = sumPlayerScores(source?.[participant.id], categories);
     return totals;
   }, {});
 }
@@ -114,10 +131,60 @@ export const roundSumEngine = {
     return parseCategoryScores(values, participants, scoreCategoriesFor(categories), parseFormula);
   },
   validateSession(entries) { return entries?.rounds?.length ? { valid: true } : { valid: false, error: 'errors.roundRequired' }; },
+  scorecard(rounds, participants, categories = []) {
+    if (!rounds.length) return { valid: false, error: 'errors.roundRequired' };
+    const names = scoreCategoriesFor(categories);
+    const ids = participants.map(({ id }) => id);
+    const totalsByPlayer = new Float64Array(ids.length);
+    const totalsByCategory = names.map(() => new Float64Array(ids.length));
+    const scored = [];
+    const width = Math.max(1, names.length);
+    for (const round of rounds) {
+      const scores = new Array(1 + ids.length * width);
+      scores[0] = round.id;
+      for (let player = 0; player < ids.length; player += 1) {
+        const id = ids[player];
+        const input = round.scores?.[id];
+        if (!names.length) {
+          const result = parseFormula(input);
+          if (!result.valid) return result;
+          scores[player + 1] = result.value;
+          totalsByPlayer[player] += result.value;
+          continue;
+        }
+        if (!input || typeof input !== 'object') return { valid: false, error: 'errors.scoreRequired' };
+        const offset = 1 + player * width;
+        let roundTotal = 0;
+        for (let index = 0; index < names.length; index += 1) {
+          const category = names[index];
+          let score = input[category];
+          if (!isFormulaNumber(score)) {
+            const result = parseFormula(score);
+            if (!result.valid) return result;
+            score = result.value;
+          } else {
+            score ||= 0;
+          }
+          scores[offset + index] = score;
+          roundTotal += score;
+          totalsByCategory[index][player] += score;
+        }
+        totalsByPlayer[player] += roundTotal;
+      }
+      scored.push(scores);
+    }
+    const totalMap = (values) => Object.fromEntries(ids.map((id, index) => [id, values[index]]));
+    return {
+      valid: true,
+      entries: { roundScores: scored },
+      totals: totalMap(totalsByPlayer),
+      categoryTotals: Object.fromEntries(names.map((category, index) => [category, totalMap(totalsByCategory[index])])),
+    };
+  },
   calculateTotals(entries, participants, categories = []) {
     const names = scoreCategoriesFor(categories);
     return participants.reduce((totals, participant) => {
-      totals[participant.id] = (entries.rounds ?? []).reduce((sum, round) => sum + aggregateCategoryScores(round.scores, [participant], names)[participant.id], 0);
+      totals[participant.id] = (entries.rounds ?? []).reduce((sum, round) => sum + sumPlayerScores(round.scores?.[participant.id], names), 0);
       return totals;
     }, {});
   },
@@ -166,14 +233,6 @@ function marioKartParticipants(race, participants) {
   return ids.map((id) => participants.find((participant) => participant.id === id)).filter(Boolean);
 }
 
-function marioKartRacePoints(race, participants) {
-  return marioKartParticipants(race, participants).reduce((points, participant) => {
-    const placement = Number(race.placements?.[participant.id]);
-    points[participant.id] = MARIO_KART_POINTS[placement - 1] ?? 0;
-    return points;
-  }, {});
-}
-
 export const marioKartEngine = {
   id: 'mario-kart-8',
   initialEntries: () => ({ races: [] }),
@@ -188,18 +247,27 @@ export const marioKartEngine = {
     if (new Set(placements).size !== placements.length) return { valid: false, error: 'errors.marioKartPlacementDuplicate' };
     const itemIds = Array.isArray(race.itemIds) ? race.itemIds : [];
     if (race.itemSet === 'custom' && (!itemIds.length || itemIds.some((item) => !MARIO_KART_ITEMS.includes(item)))) return { valid: false, error: 'errors.marioKartItemsRequired' };
-    const normalizedPlacements = racers.reduce((result, participant) => { result[participant.id] = Number(race.placements[participant.id]); return result; }, {});
-    const normalizedRace = { ...race, track: race.track ?? '', participantIds: racers.map((participant) => participant.id), placements: normalizedPlacements, itemIds: [...new Set(itemIds)] };
-    const points = marioKartRacePoints(normalizedRace, participants);
+    const normalizedPlacements = {};
+    const points = {};
+    for (const [index, participant] of racers.entries()) {
+      const placement = placements[index];
+      normalizedPlacements[participant.id] = placement;
+      points[participant.id] = MARIO_KART_POINTS[placement - 1];
+    }
     if (race.points && racers.some((participant) => Number(race.points[participant.id]) !== points[participant.id])) return { valid: false, error: 'errors.marioKartPointsInvalid' };
-    return { valid: true, entry: { ...normalizedRace, points } };
+    return { valid: true, entry: { ...race, track: race.track ?? '', participantIds: racers.map((participant) => participant.id), placements: normalizedPlacements, itemIds: [...new Set(itemIds)], points } };
   },
   validateSession(entries, participants) {
     if (!Array.isArray(entries?.races) || !entries.races.length) return { valid: false, error: 'errors.marioKartRaceRequired' };
     if (!entries.races.every((race) => this.validateEntry(race, participants).valid)) return { valid: false, error: 'errors.marioKartRaceInvalid' };
-    const first = entries.races[0];
-    const sameItems = (left, right) => JSON.stringify([...(left ?? [])].sort()) === JSON.stringify([...(right ?? [])].sort());
-    return entries.races.every((race) => race.cc === first.cc && race.itemSet === first.itemSet && sameItems(race.itemIds, first.itemIds))
+    return this.validateRules(entries.races);
+  },
+  validateRules(races) {
+    if (!races.length) return { valid: false, error: 'errors.marioKartRaceRequired' };
+    const first = races[0];
+    const itemKey = (ids) => JSON.stringify([...(ids ?? [])].sort());
+    const firstItems = itemKey(first.itemIds);
+    return races.every((race) => race.cc === first.cc && race.itemSet === first.itemSet && itemKey(race.itemIds) === firstItems)
       ? { valid: true } : { valid: false, error: 'errors.marioKartRulesLocked' };
   },
   calculateTotals(entries, participants) {
