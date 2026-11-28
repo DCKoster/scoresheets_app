@@ -3,9 +3,10 @@ import { latestCustomItemIds } from './data/mario-kart.js';
 import { applyStaticTranslations, createTranslator, resolveLocale, saveLocale } from './i18n.js';
 import { getScoringEngine } from './scoring/engines.js';
 import { LocalGameRepository, LocalSessionRepository, createId, exportBackup, exportSessionBackup, importBackup, migrateStorage } from './state/repositories.js';
-import { GroupGameRepository, GroupSessionRepository } from './state/cloud.js';
+import { GroupGameRepository, GroupRepository, GroupSessionRepository } from './state/cloud.js';
 import { blankPlayer, playerPicker, validateGroupPlayers } from './ui/group-players.js';
 import { installGroups } from './ui/groups.js';
+import { openCopySession } from './ui/copy-session.js';
 import { parseParticipants } from './utils/players.js';
 import { showView, wireTabNavigation } from './ui/navigation.js';
 import { renderHomeSummary } from './ui/home.js';
@@ -34,7 +35,7 @@ const localGames = new LocalGameRepository(localStorage);
 const localSessions = new LocalSessionRepository(localStorage);
 let gameRepository = localGames;
 let sessionRepository = localSessions;
-let group = { repository: null, snapshot: null, account: null, online: false };
+let group = { repository: null, snapshot: null, account: null, groups: [], online: false };
 let newGroupPlayers = [];
 let editingGameRevision;
 let savingSession = false;
@@ -124,6 +125,7 @@ function renderDynamic(renderEditor = false) {
     onExport: group.repository ? null : () => run(exportSessions),
     onExportSession: group.repository ? null : (sessionId) => run(() => exportSavedSession(sessionId)),
     onImport: group.repository ? null : (file) => run(() => importSessions(file)),
+    onCopy: !group.repository && group.account && group.groups.length ? copyLocalSession : null,
   }, i18n, state.historyGrouped, (grouped) => {
     state.historyGrouped = grouped;
     renderDynamic();
@@ -239,6 +241,20 @@ function editSavedSession(session) {
   editor(dom.entryPanel, state.activeSession, engine, (key) => alert(localized(key)), i18n, state.activeEditorState, (editorState, event) => handleEditorState(engine, editorState, event));
   showView('new-session', dom.views, dom.tabButtons);
   renderDynamic();
+}
+
+function copyLocalSession(session) {
+  const accountId = group.account.id;
+  openCopySession(session, group.groups, {
+    i18n,
+    repository: (groupId) => new GroupRepository(accountId, groupId),
+    viewHistory: (groupId) => run(async () => {
+      if (group.account?.id !== accountId) throw new Error('cloud.signInRequired');
+      if (!group.groups.some(({ id }) => id === groupId)) throw new Error('cloud.membershipRequired');
+      await groups.select(groupId);
+      showView('history', dom.views, dom.tabButtons);
+    }),
+  });
 }
 
 async function exportSessions() {

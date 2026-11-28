@@ -27,6 +27,7 @@ For private groups, the Worker checks the signed-in account and its group member
 - Use named score categories, round formulas, competitive or cooperative templates, and winner-only results.
 - Create and edit custom templates; duplicate any template; delete custom templates.
 - Edit or delete saved sessions. In **Local scoresheets**, export a full backup or one session and import validated non-conflicting records.
+- Copy individual local sessions to private groups, with explicit player links and duplicate prevention across devices.
 - Filter and sort player, game, round, and Mario Kart statistics using the selected local or group history.
 - Keep history usable after a template is changed or deleted.
 - Render user-provided names through DOM text properties.
@@ -51,4 +52,4 @@ npm test
 
 ## Deferred Work
 
-Direct backup import into a private group and linking old guest names to accounts remain deferred. For reusable scoring sections, repeated sections, bonuses and penalties, and lookup calculations, see the [composable scoring design](docs/composable-scoring-architecture.md).
+For reusable scoring sections, repeated sections, bonuses and penalties, and lookup calculations, see the [composable scoring design](docs/composable-scoring-architecture.md).

@@ -161,6 +161,69 @@ const scoredRound = roundHistory.sessions.find(({ id }) => id === roundMatch.id)
 assert.deepEqual(scoredRound.entries.rounds, [{ id: 'r1', scores: { guest: 6, player: -3 } }]);
 assert.deepEqual(scoredRound.totals, { guest: 6, player: -3 });
 
+const historical = {
+  ...matchFor('local-custom-game', null, alice.id),
+  gameNameAtPlay: template.name,
+  createdAt: '2021-04-06T15:45:00+02:00',
+  scoring: template.scoring,
+  participants: [{ id: 'guest', displayName: 'Old guest' }, { id: 'player', displayName: 'Old player name', userId: alice.id }],
+};
+const copy = (match) => ({ type: 'import', operationId: randomUUID(), expectedRevision: 0, match });
+const copiedRequest = copy(historical);
+const repeatedRequest = copy(historical);
+const [copied, repeated] = (await Promise.all([
+  submit(groupA, alice, copiedRequest), submit(groupA, aliceSecondSession, repeatedRequest),
+])).map(({ result }) => result);
+assert.equal(copied.id, repeated.id);
+assert.equal([copied, repeated].filter(({ alreadyPresent }) => alreadyPresent).length, 1);
+const winningRequest = copied.alreadyPresent ? repeatedRequest : copiedRequest;
+const winningResult = copied.alreadyPresent ? repeated : copied;
+assert.deepEqual((await submit(groupA, alice, winningRequest)).result, winningResult);
+const historicalRevision = {
+  ...historical, id: randomUUID(), scoring: { ...historical.scoring, ranking: 'lowest' },
+};
+const { result: changedCopy } = await submit(groupA, alice, copy(historicalRevision));
+const { result: sameRulesCopy } = await submit(groupA, alice, copy({
+  ...historicalRevision, id: randomUUID(), gameNameAtPlay: 'Renamed local game',
+}));
+const { result: invalidCopy } = await submit(groupA, alice, copy({
+  ...historical, id: randomUUID(), entries: { values: { guest: null, player: 3 } },
+}), 400);
+assert.equal(invalidCopy.error, 'errors.scoreRequired');
+const { result: copyHistory } = await client(groupPath(groupA, 'matches'), { actor: alice });
+const [originalCopy, revisedCopy, renamedCopy] = [copied, changedCopy, sameRulesCopy]
+  .map(({ id }) => copyHistory.sessions.find((session) => session.id === id));
+assert.equal(copyHistory.sessions.filter(({ id }) => id === copied.id).length, 1);
+assert.equal(originalCopy.createdAt, '2021-04-06T13:45:00.000Z');
+assert.deepEqual(originalCopy.totals, { guest: 3, player: 7 });
+assert.equal(originalCopy.participants[1].displayName, 'Old player name');
+assert.equal(originalCopy.participants[1].userId, alice.id);
+assert.equal(originalCopy.participants[0].userId, null);
+assert.equal(originalCopy.gameId, revisedCopy.gameId);
+assert.notEqual(originalCopy.gameRevision, revisedCopy.gameRevision);
+assert.equal(revisedCopy.gameRevision, renamedCopy.gameRevision);
+assert.equal(renamedCopy.gameNameAtPlay, 'Renamed local game');
+assert.equal(revisedCopy.scoring.ranking, 'lowest');
+const { result: copyData } = await client(groupPath(groupA, 'data'), { actor: owner });
+assert.deepEqual(copyData.games.map(({ id }) => id), [game.id]);
+await submit(groupA, alice, save({ ...originalCopy, entries: { values: { guest: 4, player: 7 } } }, 1));
+assert.equal((await submit(groupA, bob, copy(historical))).result.revision, 2);
+const { result: afterCopyEdit } = await client(groupPath(groupA, 'matches'), { actor: bob });
+assert.equal(afterCopyEdit.sessions.find(({ id }) => id === copied.id).totals.guest, 4);
+await submit(groupB, bob, copy(historical), 422);
+const { result: fromAnotherGroup } = await submit(groupB, bob, copy({
+  ...historical, participants: historical.participants.map((part) => ({ ...part, userId: null })),
+}));
+assert.equal(fromAnotherGroup.id, copied.id);
+await submit(groupA, alice, { type: 'delete', id: copied.id, operationId: randomUUID(), expectedRevision: 2 });
+assert.equal((await submit(groupA, alice, copy(historical), 409)).result.error, 'cloud.importDeleted');
+const { result: winnerCopy } = await submit(groupA, alice, copy({
+  ...historical, id: randomUUID(), gameId: 'dirty-pig', gameNameAtPlay: 'Dirty Pig',
+  scoring: { engineId: 'winner-only', ranking: 'selected' }, entries: { winnerId: 'player' },
+}));
+const { result: legacyHistory } = await client(groupPath(groupA, 'matches'), { actor: owner });
+assert.deepEqual(legacyHistory.sessions.find(({ id }) => id === winnerCopy.id).entries, { winnerIds: ['player'] });
+
 const { result: replacement } = await client(groupPath(groupA, `codes/${alice.id}`), { actor: owner, method: 'POST' });
 const newIdentity = { ...aliceIdentity, code: replacement.code };
 assert.notEqual(newIdentity.code, aliceIdentity.code);
@@ -171,6 +234,7 @@ const renewed = await login(newIdentity);
 assert.equal(renewed.id, alice.id);
 await client(groupPath(groupA, `members/${alice.id}`), { actor: owner, method: 'DELETE' });
 await submit(groupA, renewed, aliceEdit, 403);
+await submit(groupA, bob, copy({ ...historical, id: randomUUID() }), 422);
 await client(groupPath(groupA, 'data'), { actor: renewed, status: 403 });
 await add(groupA, newIdentity.username, undefined, 200);
 await client('/api/auth/sign-out', { method: 'POST', actor: renewed });

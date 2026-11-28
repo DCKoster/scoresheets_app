@@ -47,16 +47,16 @@ async function open(offline = false) {
   await page.goto(origin, { waitUntil: 'domcontentloaded' });
 }
 
-async function signIn(identity) {
-  const form = page.locator('#group-login');
-  if (!(await form.isVisible())) await page.locator('#group-show-login').click();
+async function signIn(identity, targetPage = page) {
+  const form = targetPage.locator('#group-login');
+  if (!(await form.isVisible())) await targetPage.locator('#group-show-login').click();
   await form.locator('[name=username]').fill(identity.username);
   await form.locator('[name=code]').fill(identity.code);
-  const reply = page.waitForResponse((response) => new URL(response.url()).pathname === '/api/auth/sign-in');
+  const reply = targetPage.waitForResponse((response) => new URL(response.url()).pathname === '/api/auth/sign-in');
   await form.getByRole('button', { name: 'Sign in' }).click();
   const response = await reply;
   assert.equal(response.status(), 200, 'Browser username and login code accepted');
-  await page.waitForFunction(() => document.querySelector('#group-login').classList.contains('hidden'));
+  await targetPage.waitForFunction(() => document.querySelector('#group-login').classList.contains('hidden'));
 }
 
 async function selectGroup() {
@@ -116,10 +116,73 @@ async function countPending(expected) {
 const history = () => request(groupPath('matches'), accounts.bob);
 const find = async (guest) => (await history()).sessions.find(({ participants }) => participants.some(({ displayName }) => displayName === guest));
 
+async function verifyCopy() {
+  const localId = randomUUID();
+  const guest = `Local guest ${localId.slice(0, 8)}`;
+  const original = {
+    schemaVersion: 3, id: localId, gameId: 'regenwormen', gameNameAtPlay: 'Pick-omino',
+    createdAt: '2020-04-06T13:45:00.000Z', playMode: 'competitive', scoreCategories: [],
+    scoring: { engineId: 'final-total', ranking: 'highest' },
+    participants: [{ id: 'player', displayName: 'Daniël' }, { id: 'guest', displayName: guest }],
+    entries: { values: { player: 7, guest: 3 } }, totals: { player: 7, guest: 3 },
+  };
+  const backup = {
+    name: 'overlapping-backup.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify({ schemaVersion: 1, sessions: [original], customGames: [] })),
+  };
+
+  async function review(targetPage) {
+    await targetPage.locator('#group-choice').selectOption('');
+    await targetPage.getByRole('button', { name: 'Session History' }).click();
+    await targetPage.locator('#saved-list input[type=file]').setInputFiles(backup);
+    const card = targetPage.locator('.list-item').filter({ hasText: guest });
+    await card.getByRole('button', { name: 'Copy to group' }).click();
+    const dialog = targetPage.getByRole('dialog', { name: 'Copy to group' });
+    await dialog.getByLabel('Destination group').selectOption(groupA.id);
+    const daniel = dialog.getByRole('combobox', { name: 'Link player 1 (Daniël)' });
+    await daniel.locator(`option[value="${accounts.alice.id}"]`).waitFor({ state: 'attached' });
+    assert.equal(await daniel.inputValue(), '', 'Accounts start unlinked');
+    await daniel.selectOption(accounts.alice.id);
+    return dialog;
+  }
+
+  const phoneProfile = await mkdtemp(join(tmpdir(), 'scoresheets-phone-'));
+  let phone;
+  try {
+    phone = await chromium.launchPersistentContext(phoneProfile, { locale: 'en-GB', viewport: { width: 390, height: 844 } });
+    const phonePage = phone.pages()[0];
+    await phonePage.goto(origin, { waitUntil: 'domcontentloaded' });
+    await signIn(alice, phonePage);
+    const dialogs = await Promise.all([review(page), review(phonePage)]);
+    await Promise.all(dialogs.map((dialog) => dialog.getByRole('button', { name: 'Copy to group' }).click()));
+    await Promise.all(dialogs.map((dialog) => dialog.getByRole('button', { name: 'Open group history' }).waitFor()));
+    const messages = await Promise.all(dialogs.map((dialog) => dialog.getByRole('status').textContent()));
+    assert.deepEqual(messages.sort(), [`Already in ${groupA.name}.`, `Copied to ${groupA.name}.`]);
+    const matching = (await history()).sessions.filter(({ participants }) => participants.some(({ displayName }) => displayName === guest));
+    assert.equal(matching.length, 1);
+    assert.equal(matching[0].createdAt, original.createdAt);
+    assert.deepEqual(matching[0].totals, original.totals);
+    assert.deepEqual(matching[0].participants, [
+      { ...original.participants[0], userId: accounts.alice.id },
+      { ...original.participants[1], userId: null },
+    ]);
+    await dialogs[0].getByRole('button', { name: 'Open group history' }).click();
+    await page.locator('#saved-list').getByText(guest, { exact: false }).waitFor();
+    assert.equal(await page.locator('#group-choice').inputValue(), groupA.id);
+    const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('scoresheets-web-sessions-v2')));
+    assert.deepEqual(stored.find(({ id }) => id === localId), original);
+  } finally {
+    if (phone) await phone.close();
+    await rm(phoneProfile, { recursive: true, force: true });
+  }
+}
+
 try {
   await request(groupPath('members'), accounts.owner, { method: 'POST', body: { username: alice.username } });
   await open();
   await signIn(alice);
+  await verifyCopy();
   await selectGroup();
   await page.waitForFunction(() => Boolean(navigator.serviceWorker.controller));
   const guest = `Offline ${randomUUID().slice(0, 7)}`;
@@ -248,7 +311,7 @@ try {
   await page.getByRole('button', { name: 'Session History' }).click();
   await status(guest);
   assert.equal(await page.locator('#group-pending').isVisible(), false);
-  console.log('Browser verified restart, pending sync, template changes, conflicts, expiry, removal, and sign-out isolation.');
+  console.log('Browser verified copying and deduplication across profiles, restart, pending sync, template changes, conflicts, expiry, removal, and sign-out isolation.');
 } finally {
   if (context) await context.close();
   if (traceFile) await writeFile(traceFile, JSON.stringify(samples), { mode: 0o600, flag: 'wx' });

@@ -13,7 +13,7 @@ export function groupSessionsByGame(sessions) {
   return [...groups.values()];
 }
 
-function renderSession(session, currentNames, onDelete, onEdit, onExportSession, i18n) {
+function renderSession(session, currentNames, { onDelete, onEdit, onExportSession, onCopy }, i18n) {
   const item = node('div', '', 'list-item');
   const heading = node('div', '', 'history-session-heading');
   heading.append(node('strong', currentNames.get(session.gameId) ?? session.gameNameAtPlay));
@@ -29,6 +29,12 @@ function renderSession(session, currentNames, onDelete, onEdit, onExportSession,
   const actions = node('div', '', 'history-actions');
   if (onEdit) actions.append(edit);
   if (onExportSession) actions.append(exportButton);
+  if (onCopy) {
+    const copy = node('button', i18n.t('cloud.copySession'), 'secondary history-copy');
+    copy.type = 'button';
+    copy.addEventListener('click', () => onCopy(session));
+    actions.append(copy);
+  }
   if (onDelete) actions.append(button);
   if (actions.childElementCount) heading.append(actions);
   item.append(heading, node('small', i18n.formatDateTime(session.createdAt)));
@@ -60,7 +66,7 @@ function renderSession(session, currentNames, onDelete, onEdit, onExportSession,
   return item;
 }
 
-export function renderSavedSessions(savedList, sessions, games, { onDelete, onEdit, onExport, onExportSession, onImport, canEdit = () => true }, i18n, grouped = false, onGroupChange = () => {}) {
+export function renderSavedSessions(savedList, sessions, games, { onDelete, onEdit, onExport, onExportSession, onImport, onCopy, canEdit = () => true }, i18n, grouped = false, onGroupChange = () => {}) {
   savedList.replaceChildren();
   const toggle = node('button', i18n.t('session.groupByGame'), 'secondary history-group-toggle');
   toggle.type = 'button'; toggle.setAttribute('aria-pressed', String(grouped));
@@ -74,7 +80,9 @@ export function renderSavedSessions(savedList, sessions, games, { onDelete, onEd
   if (!sessions.length) return savedList.append(node('p', i18n.t('session.noneSaved')));
 
   const currentNames = new Map(games.map((game) => [game.id, getGameName(game, i18n.locale)]));
-  const render = (session) => renderSession(session, currentNames, canEdit(session) ? onDelete : null, canEdit(session) ? onEdit : null, onExportSession, i18n);
+  const render = (session) => renderSession(session, currentNames, {
+    ...(canEdit(session) ? { onDelete, onEdit } : {}), onExportSession, onCopy,
+  }, i18n);
   if (!grouped) {
     sessions.forEach((session) => savedList.append(render(session)));
     return;

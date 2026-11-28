@@ -30,7 +30,7 @@ export async function createGroup(request, db, user) {
 }
 
 export function roster(db, groupId, owner) {
-  const fields = owner ? ', u.username, u.email, u.role, (u.code_fingerprint IS NOT NULL) AS codeReady' : '';
+  const fields = owner ? ', u.username, u.email, u.role, u.status, (u.code_fingerprint IS NOT NULL) AS codeReady' : '';
   const statuses = owner ? "u.status != 'disabled'" : "u.status = 'active'";
   return rows(db, `SELECT u.id, u.name${fields} FROM group_members m JOIN users u ON u.id = m.user_id
     WHERE m.group_id = ? AND m.removed_at IS NULL AND ${statuses} ORDER BY u.name, u.id`, groupId);

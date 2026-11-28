@@ -55,7 +55,7 @@ export function installGroups({ i18n, show, report, canSwitch }) {
     if (active !== repository || user !== account) return;
     snapshot = local;
     pendingWork = work;
-    await show({ account, repository, snapshot, online: connection === 'online', switching });
+    await show({ account, groups, repository, snapshot, online: connection === 'online', switching });
     draw();
   }
 
@@ -363,6 +363,7 @@ export function installGroups({ i18n, show, report, canSwitch }) {
       void sync();
     },
     draw,
+    select: switchTo,
     sync,
     async changed() {
       await loadLocal();

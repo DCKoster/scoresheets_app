@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'scoresheets-shell-v21';
+const CACHE_VERSION = 'scoresheets-shell-v23';
 
 const APP_SHELL = [
   '/',
@@ -16,6 +16,7 @@ const APP_SHELL = [
   './src/ui/navigation.js',
   './src/ui/groups.js',
   './src/ui/group-players.js',
+  './src/ui/copy-session.js',
   './src/ui/home.js',
   './src/ui/history.js',
   './src/ui/statistics.js',

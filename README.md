@@ -20,6 +20,8 @@ Use the small browser app in [web_app](web_app).
 
 In **Local scoresheets**, use **Export backup** in Session History to save your sessions and custom games as JSON. **Import backup** validates the whole file first and merges records that do not conflict with local IDs or game names. Imported records are stored in your browser.
 
+While signed in and online, use **Copy to group** on a local session in **Session History**. Choose a group and link any players to its members. The group copy keeps the original date and scoring rules. Each original session can be copied once per group, even from overlapping backups on different devices.
+
 To install the app, open it through the local server (or another HTTPS/local development server) in a browser that supports PWAs and use its Install App option. After the first load, turn off the network and reload or navigate within the app to verify the offline shell works.
 
 When changing files listed in `web_app/service-worker.js`, increment `CACHE_VERSION` so installed copies fetch the new shell on their next visit.
